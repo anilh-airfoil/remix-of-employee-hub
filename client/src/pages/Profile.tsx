@@ -223,8 +223,8 @@ export default function Profile() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Status</p>
-                    <Badge variant={status === 'active' ? 'default' : 'secondary'} className="capitalize w-fit">
-                      {status ?? '—'}
+                    <Badge variant={status === 'active' ? 'default' : 'destructive'} className="capitalize w-fit">
+                      {status?.replace('_', ' ') ?? '—'}
                     </Badge>
                   </div>
                   <Field label="Employment Type" value={employment.type?.replace('_', ' ')} />

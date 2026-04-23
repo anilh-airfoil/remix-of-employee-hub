@@ -50,8 +50,10 @@ function formatCurrency(amount: number | null | undefined, currency?: string) {
 export default function Profile() {
   const { user, status: ownStatus, dbUserId, loading: authLoading } = useAuth();
   const { isViewingSelf } = useUserContext();
-  const { profile, employment, compensation, benefits, documents, latestReview, userStatus, loading, error } = useProfileData();
-  const status = isViewingSelf ? ownStatus : userStatus;
+  const { profile, employment, compensation, benefits, documents, latestReview, userStatus, loading, error, isViewingOtherViaParam } = useProfileData();
+  // When viewing another user via ?userId= param, treat as non-self even if context says otherwise
+  const isEffectivelyViewingSelf = isViewingSelf && !isViewingOtherViaParam;
+  const status = isEffectivelyViewingSelf ? ownStatus : userStatus;
 
   const [editName, setEditName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -98,7 +100,7 @@ export default function Profile() {
   }, [profile?.name]);
 
   const handleSaveName = async () => {
-    if (!dbUserId || !isViewingSelf) return;
+    if (!dbUserId || !isEffectivelyViewingSelf) return;
     setSaving(true);
     const { error: updateError } = await supabase
       .from('profiles')
@@ -121,7 +123,7 @@ export default function Profile() {
           <div>
             <h1 className="text-2xl font-heading font-bold tracking-tight">Profile</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {authLoading ? 'Loading...' : isViewingSelf ? 'Your personal and employment details' : 'Viewing another user\'s profile'}
+              {authLoading ? 'Loading...' : isEffectivelyViewingSelf ? 'Your personal and employment details' : 'Viewing another user\'s profile'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -154,7 +156,7 @@ export default function Profile() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1 sm:col-span-2">
                     <p className="text-xs text-muted-foreground">Name</p>
-                    {isViewingSelf ? (
+                    {isEffectivelyViewingSelf ? (
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                         <Input
                           value={editName}
@@ -179,7 +181,7 @@ export default function Profile() {
                   <Field label="Department" value={profile.department} />
                   <Field label="Location" value={profile.location} />
                   <Field label="Slack / Contact" value={profile.slack_contact} />
-                  <Field label="Email" value={profile.email ?? (isViewingSelf ? user?.email : null)} />
+                  <Field label="Email" value={profile.email ?? (isEffectivelyViewingSelf ? user?.email : null)} />
                 </div>
               )}
             </CardContent>
@@ -329,7 +331,7 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {isViewingSelf && (
+        {isEffectivelyViewingSelf && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">

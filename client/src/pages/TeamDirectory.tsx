@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { useUserContext } from '@/contexts/UserContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +24,6 @@ interface TeamMember {
 
 export default function TeamDirectory() {
   const navigate = useNavigate();
-  const { setSelectedUserId } = useUserContext();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -91,8 +89,7 @@ export default function TeamDirectory() {
   const inactiveCount = members.filter(m => m.status === 'not_active').length;
 
   function handleViewUser(userId: string) {
-    setSelectedUserId(userId);
-    navigate('/profile');
+    navigate(`/profile?userId=${userId}`);
   }
 
   return (

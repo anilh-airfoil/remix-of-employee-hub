@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserContext } from '@/contexts/UserContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,11 +15,20 @@ interface ProfileData {
   userStatus: string | null;
   loading: boolean;
   error: string | null;
+  /** True when viewing another user via ?userId= query param */
+  isViewingOtherViaParam: boolean;
 }
 
 export function useProfileData(): ProfileData {
+  const [searchParams] = useSearchParams();
+  const paramUserId = searchParams.get('userId');
   const { selectedUserId } = useUserContext();
   const { dbUserId } = useAuth();
+
+  // URL query param takes priority over context selectedUserId
+  const effectiveUserId = paramUserId ?? selectedUserId;
+  const isViewingOtherViaParam = !!paramUserId && paramUserId !== dbUserId;
+
   const [data, setData] = useState<ProfileData>({
     profile: null,
     employment: null,
@@ -29,10 +39,11 @@ export function useProfileData(): ProfileData {
     userStatus: null,
     loading: true,
     error: null,
+    isViewingOtherViaParam: false,
   });
 
   useEffect(() => {
-    if (!dbUserId || !selectedUserId) {
+    if (!dbUserId || !effectiveUserId) {
       setData(prev => ({ ...prev, loading: false }));
       return;
     }
@@ -44,13 +55,13 @@ export function useProfileData(): ProfileData {
 
       const [profileRes, employmentRes, compensationRes, benefitsRes, documentsRes, reviewsRes, userRes] =
         await Promise.all([
-          supabase.from('profiles').select('*').eq('user_id', selectedUserId).maybeSingle(),
-          supabase.from('employment').select('*').eq('user_id', selectedUserId).maybeSingle(),
-          supabase.from('compensation').select('*').eq('user_id', selectedUserId).maybeSingle(),
-          supabase.from('benefits').select('*').eq('user_id', selectedUserId).maybeSingle(),
-          supabase.from('documents').select('*').eq('user_id', selectedUserId).order('created_at', { ascending: false }),
-          supabase.from('reviews').select('*').eq('user_id', selectedUserId).order('review_date', { ascending: false }).limit(1),
-          supabase.from('users').select('status').eq('id', selectedUserId).maybeSingle(),
+          supabase.from('profiles').select('*').eq('user_id', effectiveUserId as string).maybeSingle(),
+          supabase.from('employment').select('*').eq('user_id', effectiveUserId as string).maybeSingle(),
+          supabase.from('compensation').select('*').eq('user_id', effectiveUserId as string).maybeSingle(),
+          supabase.from('benefits').select('*').eq('user_id', effectiveUserId as string).maybeSingle(),
+          supabase.from('documents').select('*').eq('user_id', effectiveUserId as string).order('created_at', { ascending: false }),
+          supabase.from('reviews').select('*').eq('user_id', effectiveUserId as string).order('review_date', { ascending: false }).limit(1),
+          supabase.from('users').select('status').eq('id', effectiveUserId as string).maybeSingle(),
         ]);
 
       if (cancelled) return;
@@ -68,12 +79,13 @@ export function useProfileData(): ProfileData {
         userStatus: userRes.data?.status ?? null,
         loading: false,
         error: err ? err.message : null,
+        isViewingOtherViaParam,
       });
     }
 
     fetchAll();
     return () => { cancelled = true; };
-  }, [selectedUserId]);
+  }, [effectiveUserId, dbUserId]);
 
   return data;
 }

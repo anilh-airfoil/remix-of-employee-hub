@@ -222,7 +222,7 @@ export default function Profile() {
                   <Field label="Hourly Rate" value={formatCurrency(compensation.hourly_rate, compensation.currency)} />
                   <Field label="Guaranteed Hours" value={compensation.guaranteed_hours} />
                   <Field label="Currency" value={compensation.currency} />
-                  <Field label="Contract Type" value={compensation.contract_type?.replace('_', ' ')} />
+                  <Field label="Contract Type" value={compensation.contract_type_label ?? compensation.contract_type?.replace('_', ' ')} />
                 </div>
               )}
             </CardContent>
@@ -246,7 +246,7 @@ export default function Profile() {
                       {status?.replace('_', ' ') ?? '—'}
                     </Badge>
                   </div>
-                  <Field label="Employment Type" value={employment.type?.replace('_', ' ')} />
+                  <Field label="Employment Type" value={employment.employee_type_label ?? employment.type?.replace('_', ' ')} />
                   <Field label="Start Date" value={formatDate(employment.start_date)} />
                   <Field label="End Date" value={formatDate(employment.end_date)} />
                 </div>

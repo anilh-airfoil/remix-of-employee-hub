@@ -58,6 +58,7 @@ export type Database = {
       compensation: {
         Row: {
           contract_type: Database["public"]["Enums"]["contract_type"]
+          contract_type_label: string | null
           created_at: string
           currency: string
           guaranteed_hours: number | null
@@ -69,6 +70,7 @@ export type Database = {
         }
         Insert: {
           contract_type?: Database["public"]["Enums"]["contract_type"]
+          contract_type_label?: string | null
           created_at?: string
           currency?: string
           guaranteed_hours?: number | null
@@ -80,6 +82,7 @@ export type Database = {
         }
         Update: {
           contract_type?: Database["public"]["Enums"]["contract_type"]
+          contract_type_label?: string | null
           created_at?: string
           currency?: string
           guaranteed_hours?: number | null
@@ -137,6 +140,7 @@ export type Database = {
       employment: {
         Row: {
           created_at: string
+          employee_type_label: string | null
           end_date: string | null
           id: string
           start_date: string | null
@@ -146,6 +150,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          employee_type_label?: string | null
           end_date?: string | null
           id?: string
           start_date?: string | null
@@ -155,6 +160,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          employee_type_label?: string | null
           end_date?: string | null
           id?: string
           start_date?: string | null

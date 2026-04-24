@@ -150,7 +150,7 @@ export default function Profile() {
                   <div className="flex flex-col sm:flex-row gap-5 items-start">
                     {/* Avatar — display only, no upload */}
                     <div className="flex-shrink-0">
-                      <div className="w-20 h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center border border-border">
+                      <div className="w-24 h-24 rounded-full overflow-hidden bg-muted flex items-center justify-center border border-border">
                         {profile.avatar_url ? (
                           <img
                             src={profile.avatar_url}
@@ -158,7 +158,7 @@ export default function Profile() {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <span className="text-xl font-semibold text-muted-foreground select-none">
+                          <span className="text-2xl font-semibold text-muted-foreground select-none">
                             {getInitials(profile.name)}
                           </span>
                         )}
@@ -211,7 +211,7 @@ export default function Profile() {
                         <MapPin className="h-3.5 w-3.5" /> Location
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Field label="Location" value={profile.location} />
+                        <Field label="Country" value={profile.location} />
                         <Field label="Home Address" value={profile.home_address} />
                       </div>
                     </div>

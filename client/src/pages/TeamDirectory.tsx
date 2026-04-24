@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Users, UserCheck, UserX } from 'lucide-react';
+import { Search, Users, UserCheck, UserX, X } from 'lucide-react';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
 
 // Session storage key for preserving list state
@@ -21,7 +21,7 @@ interface TeamMember {
   status: string;
   name: string | null;
   department: string | null;
-  contract_type_label: string | null;
+  contract_type: string | null;
   email: string | null;
 }
 
@@ -58,7 +58,7 @@ export default function TeamDirectory() {
           .in('user_id', userIds),
         supabase
           .from('compensation')
-          .select('user_id, contract_type_label')
+          .select('user_id, contract_type')
           .in('user_id', userIds),
       ]);
 
@@ -75,7 +75,7 @@ export default function TeamDirectory() {
           status: u.status,
           name: p?.name ?? null,
           department: p?.department ?? null,
-          contract_type_label: (c as any)?.contract_type_label ?? null,
+          contract_type: (c as any)?.contract_type ?? null,
           email: (p as any)?.email ?? null,
         };
       });
@@ -124,7 +124,7 @@ export default function TeamDirectory() {
         (m.name?.toLowerCase().includes(q)) ||
         (m.email?.toLowerCase().includes(q)) ||
         (m.department?.toLowerCase().includes(q)) ||
-        (m.contract_type_label?.toLowerCase().includes(q)) ||
+        (m.contract_type?.toLowerCase().includes(q)) ||
         (m.role.toLowerCase().includes(q))
       );
     }
@@ -215,8 +215,17 @@ export default function TeamDirectory() {
               placeholder="Search team members..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-9 w-full"
+              className={`pl-9 w-full ${search ? 'pr-9' : ''}`}
             />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {filterButtons.map(btn => (
@@ -281,7 +290,7 @@ export default function TeamDirectory() {
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap hidden md:table-cell">{member.department ?? '—'}</TableCell>
-                        <TableCell className="whitespace-nowrap hidden lg:table-cell">{member.contract_type_label ?? '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap hidden lg:table-cell capitalize">{member.contract_type ?? '—'}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">
                           <Button
                             variant="ghost"

@@ -57,7 +57,7 @@ export default function Reimbursements() {
       const { data: reimb } = await supabase
         .from('reimbursements')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', userId as string)
         .eq('month', month)
         .eq('year', year)
         .maybeSingle();

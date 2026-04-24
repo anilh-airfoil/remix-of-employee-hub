@@ -284,39 +284,47 @@ export default function Profile() {
 
                     {/* Identity info */}
                     <div className="flex-1 space-y-3 min-w-0">
-                      {/* Name + AF ID row */}
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Name</p>
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      {/* Row 1: Name + Manager — equal hierarchy */}
+                      <div className="grid grid-cols-2 gap-4 items-start">
+                        {/* Name + AF ID */}
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Name</p>
                           {isEffectivelyViewingSelf ? (
-                            <>
-                              <Input
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="h-9 text-sm w-full sm:w-auto sm:flex-1"
-                                placeholder="Your name"
-                              />
-                              <Button
-                                size="sm"
-                                onClick={handleSaveName}
-                                disabled={saving || editName.trim() === (profile.name ?? '')}
-                                className="w-full sm:w-auto"
-                              >
-                                {saving ? 'Saving...' : 'Save'}
-                              </Button>
-                            </>
+                            <div className="space-y-1.5">
+                              <div className="flex gap-2">
+                                <Input
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  className="h-9 text-sm flex-1 min-w-0"
+                                  placeholder="Your name"
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={handleSaveName}
+                                  disabled={saving || editName.trim() === (profile.name ?? '')}
+                                  className="shrink-0"
+                                >
+                                  {saving ? 'Saving...' : 'Save'}
+                                </Button>
+                              </div>
+                              {profile.af_id && (
+                                <Badge variant="secondary" className="font-mono text-xs">
+                                  {profile.af_id}
+                                </Badge>
+                              )}
+                            </div>
                           ) : (
-                            <p className="text-sm font-medium">{profile.name ?? '—'}</p>
-                          )}
-                          {profile.af_id && (
-                            <Badge variant="secondary" className="font-mono text-xs shrink-0">
-                              {profile.af_id}
-                            </Badge>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-medium">{profile.name ?? '—'}</p>
+                              {profile.af_id && (
+                                <Badge variant="secondary" className="font-mono text-xs shrink-0">
+                                  {profile.af_id}
+                                </Badge>
+                              )}
+                            </div>
                           )}
                         </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="Role Title" value={profile.role_title} />
+                        {/* Manager — same row, same weight as Name */}
                         {isEffectivelyViewingSelf ? (
                           <div className="space-y-1">
                             <p className="text-xs text-muted-foreground">Manager</p>
@@ -330,6 +338,10 @@ export default function Profile() {
                         ) : (
                           <Field label="Manager" value={profile.manager} />
                         )}
+                      </div>
+                      {/* Row 2: Role Title + Department */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Role Title" value={profile.role_title} />
                         <Field label="Department" value={profile.department} />
                       </div>
                     </div>

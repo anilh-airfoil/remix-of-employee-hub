@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserContext } from '@/contexts/UserContext';
@@ -11,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { FileText, ExternalLink, Calendar, DollarSign, Shield, Briefcase, User, Star, Lock, Eye, EyeOff, Camera, Mail, MapPin } from 'lucide-react';
+import { FileText, ExternalLink, Calendar, Shield, Briefcase, User, Star, Lock, Eye, EyeOff, Mail, MapPin, DollarSign } from 'lucide-react';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -61,111 +60,12 @@ export default function Profile() {
   const isEffectivelyViewingSelf = isViewingSelf && !isViewingOtherViaParam;
   const status = isEffectivelyViewingSelf ? ownStatus : userStatus;
 
-  // Name edit
-  const [editName, setEditName] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  // Details edit (new fields)
-  const [editPersonalEmail, setEditPersonalEmail] = useState('');
-  const [editHomeAddress, setEditHomeAddress] = useState('');
-  const [editManager, setEditManager] = useState('');
-  const [savingDetails, setSavingDetails] = useState(false);
-
-  // Avatar upload
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Password change
+  // Password change (only remaining editable action)
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
-
-  useEffect(() => {
-    if (profile?.name) setEditName(profile.name);
-    if (profile?.personal_email) setEditPersonalEmail(profile.personal_email);
-    if (profile?.home_address) setEditHomeAddress(profile.home_address);
-    if (profile?.manager) setEditManager(profile.manager);
-    if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
-  }, [profile?.name, profile?.personal_email, profile?.home_address, profile?.manager, profile?.avatar_url]);
-
-  const handleSaveName = async () => {
-    if (!dbUserId || !isEffectivelyViewingSelf) return;
-    setSaving(true);
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ name: editName.trim() })
-      .eq('user_id', dbUserId);
-    setSaving(false);
-    if (updateError) {
-      toast.error('Failed to update name');
-    } else {
-      toast.success('Name updated');
-    }
-  };
-
-  const handleSaveDetails = async () => {
-    if (!dbUserId || !isEffectivelyViewingSelf) return;
-    setSavingDetails(true);
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        personal_email: editPersonalEmail.trim() || null,
-        home_address: editHomeAddress.trim() || null,
-        manager: editManager.trim() || null,
-      })
-      .eq('user_id', dbUserId);
-    setSavingDetails(false);
-    if (updateError) {
-      toast.error('Failed to save details');
-    } else {
-      toast.success('Details saved');
-    }
-  };
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !dbUserId) return;
-
-    if (file.type !== 'image/jpeg') {
-      toast.error('Only JPEG images are allowed');
-      return;
-    }
-    if (file.size > 1048576) {
-      toast.error('Image must be under 1MB');
-      return;
-    }
-
-    setUploadingAvatar(true);
-    const path = `${dbUserId}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(path, file, { upsert: true, contentType: 'image/jpeg' });
-
-    if (uploadError) {
-      setUploadingAvatar(false);
-      toast.error('Upload failed: ' + uploadError.message);
-      return;
-    }
-
-    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-    const publicUrl = urlData.publicUrl + `?t=${Date.now()}`;
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ avatar_url: publicUrl })
-      .eq('user_id', dbUserId);
-
-    setUploadingAvatar(false);
-    if (updateError) {
-      toast.error('Failed to save avatar URL');
-    } else {
-      setAvatarUrl(publicUrl);
-      toast.success('Profile picture updated');
-    }
-  };
 
   const handleChangePassword = async () => {
     if (!user?.email) return;
@@ -204,22 +104,11 @@ export default function Profile() {
       <div className="mx-auto max-w-6xl space-y-6">
         <ViewingAsBanner />
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-heading font-bold tracking-tight">Profile</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {authLoading ? 'Loading...' : isEffectivelyViewingSelf ? 'Your personal and employment details' : "Viewing another user's profile"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {isEffectivelyViewingSelf && (
-              <Button variant="outline" className="gap-2" asChild>
-                <Link to="/reimbursements">
-                  <DollarSign className="h-4 w-4" /> Submit Reimbursement
-                </Link>
-              </Button>
-            )}
-          </div>
+        <div>
+          <h1 className="text-2xl font-heading font-bold tracking-tight">Profile</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {authLoading ? 'Loading...' : isEffectivelyViewingSelf ? 'Your personal and employment details' : "Viewing another user's profile"}
+          </p>
         </div>
 
         {error && (
@@ -244,12 +133,12 @@ export default function Profile() {
                 <div className="space-y-6">
                   {/* ── IDENTITY BLOCK ── */}
                   <div className="flex flex-col sm:flex-row gap-5 items-start">
-                    {/* Avatar */}
-                    <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                    {/* Avatar — display only, no upload */}
+                    <div className="flex-shrink-0">
                       <div className="w-20 h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center border border-border">
-                        {avatarUrl ? (
+                        {profile.avatar_url ? (
                           <img
-                            src={avatarUrl}
+                            src={profile.avatar_url}
                             alt={profile.name ?? 'Avatar'}
                             className="w-full h-full object-cover"
                           />
@@ -259,85 +148,26 @@ export default function Profile() {
                           </span>
                         )}
                       </div>
-                      {isEffectivelyViewingSelf && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-xs h-7 px-2"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploadingAvatar}
-                          >
-                            <Camera className="h-3 w-3" />
-                            {uploadingAvatar ? 'Uploading...' : 'Upload Photo'}
-                          </Button>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/jpeg"
-                            className="hidden"
-                            onChange={handleAvatarUpload}
-                          />
-                        </>
-                      )}
                     </div>
 
                     {/* Identity info */}
                     <div className="flex-1 space-y-3 min-w-0">
-                      {/* Row 1: Name + Manager — equal hierarchy */}
+                      {/* Row 1: Name + AF ID | Manager */}
                       <div className="grid grid-cols-2 gap-4 items-start">
-                        {/* Name + AF ID */}
+                        {/* Name + AF ID — read-only */}
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">Name</p>
-                          {isEffectivelyViewingSelf ? (
-                            <div className="space-y-1.5">
-                              <div className="flex gap-2">
-                                <Input
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  className="h-9 text-sm flex-1 min-w-0"
-                                  placeholder="Your name"
-                                />
-                                <Button
-                                  size="sm"
-                                  onClick={handleSaveName}
-                                  disabled={saving || editName.trim() === (profile.name ?? '')}
-                                  className="shrink-0"
-                                >
-                                  {saving ? 'Saving...' : 'Save'}
-                                </Button>
-                              </div>
-                              {profile.af_id && (
-                                <Badge variant="secondary" className="font-mono text-xs">
-                                  {profile.af_id}
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-medium">{profile.name ?? '—'}</p>
-                              {profile.af_id && (
-                                <Badge variant="secondary" className="font-mono text-xs shrink-0">
-                                  {profile.af_id}
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        {/* Manager — same row, same weight as Name */}
-                        {isEffectivelyViewingSelf ? (
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Manager</p>
-                            <Input
-                              value={editManager}
-                              onChange={(e) => setEditManager(e.target.value)}
-                              className="h-9 text-sm"
-                              placeholder="Manager name"
-                            />
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium">{profile.name ?? '—'}</p>
+                            {profile.af_id && (
+                              <Badge variant="secondary" className="font-mono text-xs shrink-0">
+                                {profile.af_id}
+                              </Badge>
+                            )}
                           </div>
-                        ) : (
-                          <Field label="Manager" value={profile.manager} />
-                        )}
+                        </div>
+                        {/* Manager — read-only */}
+                        <Field label="Manager" value={profile.manager} />
                       </div>
                       {/* Row 2: Role Title + Department */}
                       <div className="grid grid-cols-2 gap-4">
@@ -351,64 +181,25 @@ export default function Profile() {
                   <div className="border-t pt-5 space-y-5">
                     {/* Contact group */}
                     <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                         <Mail className="h-3.5 w-3.5" /> Contact
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Work Email" value={profile.email ?? (isEffectivelyViewingSelf ? user?.email : null)} />
-                        {isEffectivelyViewingSelf ? (
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Personal Email</p>
-                            <Input
-                              value={editPersonalEmail}
-                              onChange={(e) => setEditPersonalEmail(e.target.value)}
-                              className="h-9 text-sm"
-                              placeholder="personal@email.com"
-                              type="email"
-                            />
-                          </div>
-                        ) : (
-                          <Field label="Personal Email" value={profile.personal_email} />
-                        )}
-                        <Field label="Slack / Contact" value={profile.slack_contact} />
+                        <Field label="Personal Email" value={profile.personal_email} />
                       </div>
                     </div>
 
                     {/* Location group */}
                     <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                         <MapPin className="h-3.5 w-3.5" /> Location
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Location" value={profile.location} />
-                        {isEffectivelyViewingSelf ? (
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Home Address</p>
-                            <Input
-                              value={editHomeAddress}
-                              onChange={(e) => setEditHomeAddress(e.target.value)}
-                              className="h-9 text-sm"
-                              placeholder="123 Main St, City"
-                            />
-                          </div>
-                        ) : (
-                          <Field label="Home Address" value={profile.home_address} />
-                        )}
+                        <Field label="Home Address" value={profile.home_address} />
                       </div>
                     </div>
-
-                    {/* Save Details button */}
-                    {isEffectivelyViewingSelf && (
-                      <div className="pt-1">
-                        <Button
-                          size="sm"
-                          onClick={handleSaveDetails}
-                          disabled={savingDetails}
-                        >
-                          {savingDetails ? 'Saving...' : 'Save Details'}
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}

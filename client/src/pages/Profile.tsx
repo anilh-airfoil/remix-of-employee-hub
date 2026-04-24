@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { FileText, ExternalLink, Calendar, DollarSign, Shield, Briefcase, User, Star, Lock, Eye, EyeOff, Camera, Mail, MapPin, Users } from 'lucide-react';
+import { FileText, ExternalLink, Calendar, DollarSign, Shield, Briefcase, User, Star, Lock, Eye, EyeOff, Camera, Mail, MapPin } from 'lucide-react';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -317,6 +317,19 @@ export default function Profile() {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <Field label="Role Title" value={profile.role_title} />
+                        {isEffectivelyViewingSelf ? (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Manager</p>
+                            <Input
+                              value={editManager}
+                              onChange={(e) => setEditManager(e.target.value)}
+                              className="h-9 text-sm"
+                              placeholder="Manager name"
+                            />
+                          </div>
+                        ) : (
+                          <Field label="Manager" value={profile.manager} />
+                        )}
                         <Field label="Department" value={profile.department} />
                       </div>
                     </div>
@@ -368,28 +381,6 @@ export default function Profile() {
                           </div>
                         ) : (
                           <Field label="Home Address" value={profile.home_address} />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Reporting group */}
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <Users className="h-3.5 w-3.5" /> Reporting
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {isEffectivelyViewingSelf ? (
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Manager</p>
-                            <Input
-                              value={editManager}
-                              onChange={(e) => setEditManager(e.target.value)}
-                              className="h-9 text-sm"
-                              placeholder="Manager name"
-                            />
-                          </div>
-                        ) : (
-                          <Field label="Manager" value={profile.manager} />
                         )}
                       </div>
                     </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserContext } from '@/contexts/UserContext';
@@ -68,6 +68,11 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+
+  // Force scroll to top whenever this page is mounted
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
 
   const handleChangePassword = async () => {
     if (!user?.email) return;

@@ -174,36 +174,51 @@ export type Database = {
       }
       profiles: {
         Row: {
+          af_id: string | null
+          avatar_url: string | null
           created_at: string
           department: string | null
           email: string | null
+          home_address: string | null
           id: string
           location: string | null
+          manager: string | null
           name: string | null
+          personal_email: string | null
           role_title: string | null
           slack_contact: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          af_id?: string | null
+          avatar_url?: string | null
           created_at?: string
           department?: string | null
           email?: string | null
+          home_address?: string | null
           id?: string
           location?: string | null
+          manager?: string | null
           name?: string | null
+          personal_email?: string | null
           role_title?: string | null
           slack_contact?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          af_id?: string | null
+          avatar_url?: string | null
           created_at?: string
           department?: string | null
           email?: string | null
+          home_address?: string | null
           id?: string
           location?: string | null
+          manager?: string | null
           name?: string | null
+          personal_email?: string | null
           role_title?: string | null
           slack_contact?: string | null
           updated_at?: string

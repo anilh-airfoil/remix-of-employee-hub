@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { FileText, ExternalLink, Calendar, Shield, Briefcase, User, Star, Lock, Eye, EyeOff, Mail, MapPin, DollarSign } from 'lucide-react';
+import { FileText, ExternalLink, Calendar, Shield, Briefcase, User, Star, Lock, Eye, EyeOff, Mail, MapPin, DollarSign, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -54,7 +55,8 @@ function getInitials(name: string | null | undefined): string {
 }
 
 export default function Profile() {
-  const { user, status: ownStatus, dbUserId, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { user, status: ownStatus, dbUserId, loading: authLoading, role } = useAuth();
   const { isViewingSelf } = useUserContext();
   const { profile, employment, compensation, benefits, documents, latestReview, userStatus, loading, error, isViewingOtherViaParam } = useProfileData();
   const isEffectivelyViewingSelf = isViewingSelf && !isViewingOtherViaParam;
@@ -104,11 +106,24 @@ export default function Profile() {
       <div className="mx-auto max-w-6xl space-y-6">
         <ViewingAsBanner />
 
-        <div>
-          <h1 className="text-2xl font-heading font-bold tracking-tight">Profile</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {authLoading ? 'Loading...' : isEffectivelyViewingSelf ? 'Your personal and employment details' : "Viewing another user's profile"}
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-heading font-bold tracking-tight">Profile</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              {authLoading ? 'Loading...' : isEffectivelyViewingSelf ? 'Your personal and employment details' : "Viewing another user's profile"}
+            </p>
+          </div>
+          {(role === 'owner' || role === 'admin') && !isEffectivelyViewingSelf && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/team')}
+              className="flex items-center gap-1.5 flex-shrink-0 mt-1"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to Team Directory
+            </Button>
+          )}
         </div>
 
         {error && (

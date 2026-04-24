@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Users, UserCheck, UserX } from 'lucide-react';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
 
+// Session storage key for preserving list state
+const STATE_KEY = 'teamdir_state';
+
 interface TeamMember {
   id: string;
   auth_id: string;
@@ -18,15 +21,19 @@ interface TeamMember {
   status: string;
   name: string | null;
   department: string | null;
-  location: string | null;
+  contract_type_label: string | null;
   email: string | null;
 }
+
+type StatusFilter = 'all' | 'active' | 'not_active';
 
 export default function TeamDirectory() {
   const navigate = useNavigate();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [scrollRestored, setScrollRestored] = useState(false);
 
   useEffect(() => {
     async function fetchTeam() {
@@ -43,17 +50,24 @@ export default function TeamDirectory() {
       }
 
       const userIds = users.map(u => u.id);
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, name, department, location, email')
-        .in('user_id', userIds);
 
-      const profileMap = new Map(
-        (profiles ?? []).map(p => [p.user_id, p])
-      );
+      const [{ data: profiles }, { data: compensations }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, name, department, email')
+          .in('user_id', userIds),
+        supabase
+          .from('compensation')
+          .select('user_id, contract_type_label')
+          .in('user_id', userIds),
+      ]);
+
+      const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
+      const compMap = new Map((compensations ?? []).map(c => [c.user_id, c]));
 
       const merged: TeamMember[] = users.map(u => {
         const p = profileMap.get(u.id);
+        const c = compMap.get(u.id);
         return {
           id: u.id,
           auth_id: u.auth_id,
@@ -61,7 +75,7 @@ export default function TeamDirectory() {
           status: u.status,
           name: p?.name ?? null,
           department: p?.department ?? null,
-          location: p?.location ?? null,
+          contract_type_label: (c as any)?.contract_type_label ?? null,
           email: (p as any)?.email ?? null,
         };
       });
@@ -73,35 +87,84 @@ export default function TeamDirectory() {
     fetchTeam();
   }, []);
 
+  // Restore scroll position and filter state after data loads
+  useEffect(() => {
+    if (!loading && members.length > 0 && !scrollRestored) {
+      try {
+        const saved = sessionStorage.getItem(STATE_KEY);
+        if (saved) {
+          const { search: savedSearch, statusFilter: savedFilter, scrollY } = JSON.parse(saved);
+          if (savedSearch !== undefined) setSearch(savedSearch);
+          if (savedFilter !== undefined) setStatusFilter(savedFilter as StatusFilter);
+          sessionStorage.removeItem(STATE_KEY);
+          // Restore scroll after a tick to allow render
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: scrollY ?? 0, behavior: 'instant' });
+          });
+        }
+      } catch {
+        // ignore parse errors
+      }
+      setScrollRestored(true);
+    }
+  }, [loading, members, scrollRestored]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return members;
-    const q = search.toLowerCase();
-    return members.filter(m =>
-      (m.name?.toLowerCase().includes(q)) ||
-      (m.email?.toLowerCase().includes(q)) ||
-      (m.department?.toLowerCase().includes(q)) ||
-      (m.location?.toLowerCase().includes(q)) ||
-      (m.role.toLowerCase().includes(q))
+    let result = members;
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter(m => m.status === statusFilter);
+    }
+
+    // Search filter
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(m =>
+        (m.name?.toLowerCase().includes(q)) ||
+        (m.email?.toLowerCase().includes(q)) ||
+        (m.department?.toLowerCase().includes(q)) ||
+        (m.contract_type_label?.toLowerCase().includes(q)) ||
+        (m.role.toLowerCase().includes(q))
+      );
+    }
+
+    // Alphabetical sort A–Z, nulls/empty to end
+    return result.sort((a, b) =>
+      (a.name ?? '\uFFFF').localeCompare(b.name ?? '\uFFFF')
     );
-  }, [members, search]);
+  }, [members, search, statusFilter]);
 
   const activeCount = members.filter(m => m.status === 'active').length;
   const inactiveCount = members.filter(m => m.status === 'not_active').length;
 
   function handleViewUser(userId: string) {
+    // Save current state before navigating away
+    sessionStorage.setItem(STATE_KEY, JSON.stringify({
+      search,
+      statusFilter,
+      scrollY: window.scrollY,
+    }));
     navigate(`/profile?userId=${userId}`);
   }
+
+  const filterButtons: { label: string; value: StatusFilter }[] = [
+    { label: 'All', value: 'all' },
+    { label: 'Active', value: 'active' },
+    { label: 'Not Active', value: 'not_active' },
+  ];
 
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6">
         <ViewingAsBanner />
-        
+
         <div>
           <h1 className="text-2xl font-heading font-bold tracking-tight">Team Directory</h1>
           <p className="text-muted-foreground text-sm mt-1">View all team members and access their profiles</p>
         </div>
 
+        {/* Stats cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -144,16 +207,33 @@ export default function TeamDirectory() {
           </Card>
         </div>
 
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search team members..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9 w-full"
-          />
+        {/* Search + Status filter row */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search team members..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 w-full"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {filterButtons.map(btn => (
+              <Button
+                key={btn.value}
+                size="sm"
+                variant={statusFilter === btn.value ? 'default' : 'outline'}
+                onClick={() => setStatusFilter(btn.value)}
+                className="text-xs"
+              >
+                {btn.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
+        {/* Table */}
         <Card>
           <CardContent className="p-0">
             {loading ? (
@@ -174,7 +254,7 @@ export default function TeamDirectory() {
                       <TableHead className="whitespace-nowrap">Role</TableHead>
                       <TableHead className="whitespace-nowrap">Status</TableHead>
                       <TableHead className="whitespace-nowrap hidden md:table-cell">Department</TableHead>
-                      <TableHead className="whitespace-nowrap hidden lg:table-cell">Location</TableHead>
+                      <TableHead className="whitespace-nowrap hidden lg:table-cell">Contract Type</TableHead>
                       <TableHead className="text-right whitespace-nowrap">Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -197,11 +277,11 @@ export default function TeamDirectory() {
                             variant={member.status === 'active' ? 'default' : 'destructive'}
                             className="capitalize"
                           >
-                            {member.status.replace('_', ' ')}
+                            {member.status === 'active' ? 'Active' : 'Not Active'}
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap hidden md:table-cell">{member.department ?? '—'}</TableCell>
-                        <TableCell className="whitespace-nowrap hidden lg:table-cell">{member.location ?? '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap hidden lg:table-cell">{member.contract_type_label ?? '—'}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">
                           <Button
                             variant="ghost"

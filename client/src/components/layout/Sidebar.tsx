@@ -1,4 +1,4 @@
-import { User, Receipt, FileText, Users, Settings, LogOut } from 'lucide-react';
+import { User, Receipt, FileText, Users, Settings, LogOut, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,7 +48,19 @@ export default function Sidebar() {
           );
         })}
       </nav>
-      <div className="px-3 mb-4">
+      <div className="px-3 mb-4 space-y-1">
+        <Link
+          to="/settings"
+          className={cn(
+            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+            location.pathname === '/settings'
+              ? 'bg-sidebar-active/15 text-sidebar-active'
+              : 'text-sidebar-foreground hover:bg-sidebar-hover hover:text-sidebar-accent-foreground'
+          )}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Settings
+        </Link>
         <button
           onClick={() => signOut()}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-hover hover:text-sidebar-accent-foreground transition-colors"

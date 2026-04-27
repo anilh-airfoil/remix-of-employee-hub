@@ -50,6 +50,36 @@
     --sidebar-border: 220 25% 20%;
     --sidebar-ring: 220 70% 55%;
   }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 220 15% 92%;
+
+    --card: 220 25% 14%;
+    --card-foreground: 220 15% 92%;
+
+    --popover: 220 25% 14%;
+    --popover-foreground: 220 15% 92%;
+
+    --primary: 220 70% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 20%;
+    --secondary-foreground: 220 15% 88%;
+
+    --muted: 220 20% 18%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 160 55% 48%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 22%;
+    --input: 220 20% 22%;
+    --ring: 220 70% 62%;
+  }
 }
 
 @layer base {

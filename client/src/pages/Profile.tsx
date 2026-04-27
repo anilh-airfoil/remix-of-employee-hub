@@ -3,14 +3,11 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserContext } from '@/contexts/UserContext';
 import { useProfileData } from '@/hooks/useProfileData';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
-import { FileText, ExternalLink, Calendar, Shield, Briefcase, User, Star, Lock, Eye, EyeOff, Mail, MapPin, DollarSign, ArrowLeft } from 'lucide-react';
+import { FileText, ExternalLink, Calendar, Shield, Briefcase, User, Star, Mail, MapPin, DollarSign, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
 
@@ -62,49 +59,10 @@ export default function Profile() {
   const isEffectivelyViewingSelf = isViewingSelf && !isViewingOtherViaParam;
   const status = isEffectivelyViewingSelf ? ownStatus : userStatus;
 
-  // Password change (only remaining editable action)
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
-
   // Force scroll to top whenever this page is mounted
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
-
-  const handleChangePassword = async () => {
-    if (!user?.email) return;
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    setChangingPassword(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
-    });
-    if (signInError) {
-      setChangingPassword(false);
-      toast.error('Current password is incorrect');
-      return;
-    }
-    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (updateError) {
-      toast.error(updateError.message);
-    } else {
-      toast.success('Password updated');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    }
-  };
 
   return (
     <DashboardLayout>
@@ -370,71 +328,7 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {isEffectivelyViewingSelf && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-                Change Password
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
-                <div className="space-y-1 sm:col-span-2">
-                  <p className="text-xs text-muted-foreground">Current Password</p>
-                  <div className="relative">
-                    <Input
-                      type={showPasswords ? 'text' : 'password'}
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="h-9 pr-10"
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords(!showPasswords)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      tabIndex={-1}
-                    >
-                      {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">New Password</p>
-                  <Input
-                    type={showPasswords ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-9"
-                    placeholder="At least 6 characters"
-                    minLength={6}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Confirm New Password</p>
-                  <Input
-                    type={showPasswords ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-9"
-                    placeholder="Re-enter new password"
-                    minLength={6}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Button
-                    size="sm"
-                    onClick={handleChangePassword}
-                    disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
-                  >
-                    {changingPassword ? 'Updating...' : 'Update Password'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+
       </div>
     </DashboardLayout>
   );

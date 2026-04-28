@@ -12,10 +12,10 @@ import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import * as SelectPrimitive from '@radix-ui/react-select';
 import {
   Table,
   TableBody,
@@ -188,7 +188,13 @@ export default function Reimbursements() {
                 </SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                    <SelectPrimitive.Item
+                      key={m}
+                      value={m}
+                      className="relative flex w-full cursor-default select-none items-center rounded-sm px-3 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+                    >
+                      <SelectPrimitive.ItemText>{m}</SelectPrimitive.ItemText>
+                    </SelectPrimitive.Item>
                   ))}
                 </SelectContent>
               </Select>

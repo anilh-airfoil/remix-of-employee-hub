@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 
-type AppRole = 'owner' | 'admin' | 'member';
+type AppRole = 'owner' | 'admin' | 'member' | 'contractor';
 
 /** Check if current user has one of the given roles */
 export function useHasRole(...roles: AppRole[]): boolean {

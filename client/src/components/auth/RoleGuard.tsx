@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
-type AppRole = 'owner' | 'admin' | 'member';
+type AppRole = 'owner' | 'admin' | 'member' | 'contractor';
 
 interface RoleGuardProps {
   children: React.ReactNode;

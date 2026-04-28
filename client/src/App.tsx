@@ -14,6 +14,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 import Reimbursements from "./pages/Reimbursements";
 import Reviews from "./pages/Reviews";
+import Invoices from "./pages/Invoices";
 import TeamDirectory from "./pages/TeamDirectory";
 import TeamSettings from "./pages/TeamSettings";
 import Settings from "./pages/Settings";
@@ -36,8 +37,39 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/" element={<Navigate to="/profile" replace />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/reimbursements" element={<ProtectedRoute><Reimbursements /></ProtectedRoute>} />
-              <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
+              {/* Reimbursements: owner, admin, member only — not contractor */}
+              <Route
+                path="/reimbursements"
+                element={
+                  <ProtectedRoute>
+                    <RoleGuard allowedRoles={['owner', 'admin', 'member']}>
+                      <Reimbursements />
+                    </RoleGuard>
+                  </ProtectedRoute>
+                }
+              />
+              {/* Reviews: owner, admin, member only — not contractor */}
+              <Route
+                path="/reviews"
+                element={
+                  <ProtectedRoute>
+                    <RoleGuard allowedRoles={['owner', 'admin', 'member']}>
+                      <Reviews />
+                    </RoleGuard>
+                  </ProtectedRoute>
+                }
+              />
+              {/* Invoices: owner, admin, contractor only — not member */}
+              <Route
+                path="/invoices"
+                element={
+                  <ProtectedRoute>
+                    <RoleGuard allowedRoles={['owner', 'admin', 'contractor']}>
+                      <Invoices />
+                    </RoleGuard>
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/team"
                 element={

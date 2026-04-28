@@ -8,13 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Shield, Users, User, UserPlus } from 'lucide-react';
+import { Shield, Users, User, UserPlus, UserCog } from 'lucide-react';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
-type AppRole = 'owner' | 'admin' | 'member';
+type AppRole = 'owner' | 'admin' | 'member' | 'contractor';
 
 interface Member {
   id: string;
@@ -55,6 +55,17 @@ const roles = [
       'View own reimbursements',
       'View own reviews',
       'Edit own name',
+    ],
+  },
+  {
+    name: 'Contractor',
+    icon: UserCog,
+    variant: 'outline' as const,
+    permissions: [
+      'View own profile',
+      'Access Invoices',
+      'Manage own settings',
+      'No team or admin access',
     ],
   },
 ];
@@ -161,19 +172,20 @@ export default function TeamSettings() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {/* 4-column role cards — equal width, vertically aligned */}
+        <div className="grid gap-4 md:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {roles.map((role) => (
-            <Card key={role.name}>
+            <Card key={role.name} className="flex flex-col">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <role.icon className="h-4 w-4 text-muted-foreground" />
+                  <role.icon className="h-4 w-4 text-muted-foreground shrink-0" />
                   {role.name}
                   <Badge variant={role.variant} className="ml-auto text-xs capitalize">
                     {role.name}
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1">
                 <ul className="space-y-2">
                   {role.permissions.map((perm, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
@@ -215,6 +227,7 @@ export default function TeamSettings() {
                     <SelectTrigger id="enroll-role"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="contractor">Contractor</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                       {currentRole === 'owner' && <SelectItem value="owner">Owner</SelectItem>}
                     </SelectContent>
@@ -288,6 +301,7 @@ export default function TeamSettings() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="member">Member</SelectItem>
+                                  <SelectItem value="contractor">Contractor</SelectItem>
                                   <SelectItem value="admin">Admin</SelectItem>
                                   {currentRole === 'owner' && (
                                     <SelectItem value="owner">Owner</SelectItem>

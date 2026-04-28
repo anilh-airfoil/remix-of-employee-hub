@@ -59,7 +59,7 @@ const summaryCards = [
   {
     label: 'Monthly Flex Cap',
     value: '$300.00',
-    helper: 'Your monthly allowance',
+    helper: 'Monthly cap',
     icon: DollarSign,
     iconBg: 'bg-blue-100 dark:bg-blue-900/40',
     iconColor: 'text-blue-500',
@@ -91,7 +91,7 @@ const summaryCards = [
   {
     label: 'Total Paid',
     value: '$271.00',
-    helper: 'Paid this month to date',
+    helper: 'Paid this Month',
     icon: CheckCircle2,
     iconBg: 'bg-teal-100 dark:bg-teal-900/40',
     iconColor: 'text-teal-500',
@@ -206,14 +206,12 @@ export default function Reimbursements() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {summaryCards.map((card) => (
             <Card key={card.label} className="shadow-sm border border-border">
-              <CardContent className="py-5 px-4 flex items-start gap-3.5 h-full">
-                <div className="flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <IconCircle icon={card.icon} bg={card.iconBg} color={card.iconColor} size="md" />
-                </div>
-                <div className="min-w-0 flex flex-col">
-                  <p className="text-xs text-muted-foreground leading-tight mb-1">{card.label}</p>
+              <CardContent className="py-5 px-4 flex items-center gap-3.5">
+                <IconCircle icon={card.icon} bg={card.iconBg} color={card.iconColor} size="md" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground leading-tight mb-1 whitespace-nowrap">{card.label}</p>
                   <p className="text-xl font-bold font-heading tracking-tight leading-none">{card.value}</p>
-                  <p className="text-xs text-muted-foreground mt-1 leading-snug">{card.helper}</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-tight whitespace-nowrap">{card.helper}</p>
                 </div>
               </CardContent>
             </Card>

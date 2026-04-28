@@ -138,23 +138,25 @@ const historyRows = [
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function IconCircle({ icon: Icon, bg, color }: { icon: React.ElementType; bg: string; color: string }) {
+function IconCircle({ icon: Icon, bg, color, size = 'sm' }: { icon: React.ElementType; bg: string; color: string; size?: 'sm' | 'md' }) {
+  const dim = size === 'md' ? 'w-11 h-11' : 'w-8 h-8';
+  const iconDim = size === 'md' ? 'h-5 w-5' : 'h-4 w-4';
   return (
-    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0 ${bg}`}>
-      <Icon className={`h-4 w-4 ${color}`} />
+    <span className={`inline-flex items-center justify-center ${dim} rounded-full flex-shrink-0 ${bg}`}>
+      <Icon className={`${iconDim} ${color}`} />
     </span>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
   if (status === 'Approved') {
-    return <Badge className="bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800 font-normal">Approved</Badge>;
+    return <Badge className="bg-green-500 hover:bg-green-500 text-white border-0 font-medium px-2.5">Approved</Badge>;
   }
-  if (status === 'Pending Review') {
-    return <Badge className="bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800 font-normal">Pending Review</Badge>;
+  if (status === 'Pending Review' || status === 'Pending') {
+    return <Badge className="bg-blue-500 hover:bg-blue-500 text-white border-0 font-medium px-2.5">Pending</Badge>;
   }
-  if (status === 'Pending') {
-    return <Badge className="bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 font-normal">Pending</Badge>;
+  if (status === 'Rejected') {
+    return <Badge className="bg-red-500 hover:bg-red-500 text-white border-0 font-medium px-2.5">Rejected</Badge>;
   }
   return <Badge variant="outline">{status}</Badge>;
 }
@@ -204,14 +206,12 @@ export default function Reimbursements() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {summaryCards.map((card) => (
             <Card key={card.label} className="shadow-sm border border-border">
-              <CardContent className="pt-4 pb-4 px-4">
-                <div className="flex items-start gap-3">
-                  <IconCircle icon={card.icon} bg={card.iconBg} color={card.iconColor} />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground leading-tight mb-1">{card.label}</p>
-                    <p className="text-lg font-bold font-heading tracking-tight leading-none">{card.value}</p>
-                    <p className="text-xs text-muted-foreground mt-1 leading-tight">{card.helper}</p>
-                  </div>
+              <CardContent className="pt-5 pb-5 px-4 flex flex-col items-center text-center gap-3">
+                <IconCircle icon={card.icon} bg={card.iconBg} color={card.iconColor} size="md" />
+                <div>
+                  <p className="text-xs text-muted-foreground leading-tight mb-1.5">{card.label}</p>
+                  <p className="text-xl font-bold font-heading tracking-tight leading-none">{card.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1.5 leading-tight">{card.helper}</p>
                 </div>
               </CardContent>
             </Card>

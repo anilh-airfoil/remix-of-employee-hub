@@ -206,12 +206,12 @@ export default function Reimbursements() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {summaryCards.map((card) => (
             <Card key={card.label} className="shadow-sm border border-border">
-              <CardContent className="pt-5 pb-5 px-4 flex flex-col items-center text-center gap-3">
+              <CardContent className="py-5 px-4 flex items-center gap-3.5">
                 <IconCircle icon={card.icon} bg={card.iconBg} color={card.iconColor} size="md" />
-                <div>
-                  <p className="text-xs text-muted-foreground leading-tight mb-1.5">{card.label}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground leading-tight mb-1">{card.label}</p>
                   <p className="text-xl font-bold font-heading tracking-tight leading-none">{card.value}</p>
-                  <p className="text-xs text-muted-foreground mt-1.5 leading-tight">{card.helper}</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-tight">{card.helper}</p>
                 </div>
               </CardContent>
             </Card>

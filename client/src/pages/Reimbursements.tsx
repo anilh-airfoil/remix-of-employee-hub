@@ -1,9 +1,9 @@
-// Phase 9.2 — Reimbursements page connected to Supabase real data.
-// Data sources: flex_monthly_ledgers, reimbursement_requests, reimbursement_request_attachments, reimbursement_categories.
-// Receipt view: generates a signed URL from the private reimbursement-attachments bucket.
-// Layout/styling preserved from Phase 8.1 reference design.
+// Phase 9.2 Tweak — Reimbursements page connected to Supabase real data.
+// Fix: Used = personal_flex_approved (not eom_flex_paid). Remaining = cap - used, allow negative.
+// Fix: Submit URL → https://forms.airfoil.studio/internal
+// Fix: View receipt → in-dashboard modal (60% viewport), signed URL, PDF/image preview.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +44,10 @@ import {
   Upload,
   Lock,
   Package,
+  X,
+  ExternalLink,
+  FileText,
+  Download,
 } from 'lucide-react';
 import { supabase as supabaseTyped } from '@/integrations/supabase/client';
 // Cast to any to query tables not yet in generated types (flex_monthly_ledgers, reimbursement_*)
@@ -51,11 +55,11 @@ import { supabase as supabaseTyped } from '@/integrations/supabase/client';
 const supabase = supabaseTyped as any;
 import { useCurrentUserId } from '@/contexts/UserContext';
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-const TALLY_FORM_URL = 'https://tally.so';
+const SUBMIT_URL = 'https://forms.airfoil.studio/internal';
 
-// Month display → month_key mapping. Extend as more months are added.
+// Month display → month_key mapping
 const MONTHS: { label: string; key: string }[] = [
   { label: 'April 2026', key: '2026-04' },
   { label: 'March 2026', key: '2026-03' },
@@ -63,21 +67,21 @@ const MONTHS: { label: string; key: string }[] = [
   { label: 'January 2026', key: '2026-01' },
 ];
 
-// ─── Category icon map (by category_name_snapshot / category name) ──────────
+// ─── Category icon map ────────────────────────────────────────────────────────
 
 const CATEGORY_ICON_MAP: Record<string, { icon: React.ElementType; iconBg: string; iconColor: string }> = {
-  'Internet (not phone)': { icon: Wifi,             iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
-  'Internet':             { icon: Wifi,             iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
-  'Gym':                  { icon: Dumbbell,         iconBg: 'bg-green-100 dark:bg-green-900/40',  iconColor: 'text-green-500' },
-  'Health/Mental Health': { icon: Heart,            iconBg: 'bg-red-100 dark:bg-red-900/40',      iconColor: 'text-red-500' },
-  'Health':               { icon: Heart,            iconBg: 'bg-red-100 dark:bg-red-900/40',      iconColor: 'text-red-500' },
+  'Internet (not phone)': { icon: Wifi,             iconBg: 'bg-blue-100 dark:bg-blue-900/40',     iconColor: 'text-blue-500' },
+  'Internet':             { icon: Wifi,             iconBg: 'bg-blue-100 dark:bg-blue-900/40',     iconColor: 'text-blue-500' },
+  'Gym':                  { icon: Dumbbell,         iconBg: 'bg-green-100 dark:bg-green-900/40',   iconColor: 'text-green-500' },
+  'Health/Mental Health': { icon: Heart,            iconBg: 'bg-red-100 dark:bg-red-900/40',       iconColor: 'text-red-500' },
+  'Health':               { icon: Heart,            iconBg: 'bg-red-100 dark:bg-red-900/40',       iconColor: 'text-red-500' },
   'Co-Working':           { icon: Monitor,          iconBg: 'bg-purple-100 dark:bg-purple-900/40', iconColor: 'text-purple-500' },
-  'Travel':               { icon: Plane,            iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
-  'Midjourney':           { icon: Image,            iconBg: 'bg-slate-100 dark:bg-slate-800',     iconColor: 'text-slate-500' },
-  'Crypto Stipend':       { icon: CircleDollarSign, iconBg: 'bg-amber-100 dark:bg-amber-900/40',  iconColor: 'text-amber-500' },
-  'Equipment':            { icon: Package,          iconBg: 'bg-teal-100 dark:bg-teal-900/40',    iconColor: 'text-teal-500' },
-  'Manager/Business/Other': { icon: Receipt,        iconBg: 'bg-slate-100 dark:bg-slate-800',     iconColor: 'text-slate-500' },
-  'Client Expense Claim': { icon: Receipt,          iconBg: 'bg-slate-100 dark:bg-slate-800',     iconColor: 'text-slate-500' },
+  'Travel':               { icon: Plane,            iconBg: 'bg-blue-100 dark:bg-blue-900/40',     iconColor: 'text-blue-500' },
+  'Midjourney':           { icon: Image,            iconBg: 'bg-slate-100 dark:bg-slate-800',      iconColor: 'text-slate-500' },
+  'Crypto Stipend':       { icon: CircleDollarSign, iconBg: 'bg-amber-100 dark:bg-amber-900/40',   iconColor: 'text-amber-500' },
+  'Equipment':            { icon: Package,          iconBg: 'bg-teal-100 dark:bg-teal-900/40',     iconColor: 'text-teal-500' },
+  'Manager/Business/Other': { icon: Receipt,        iconBg: 'bg-slate-100 dark:bg-slate-800',      iconColor: 'text-slate-500' },
+  'Client Expense Claim': { icon: Receipt,          iconBg: 'bg-slate-100 dark:bg-slate-800',      iconColor: 'text-slate-500' },
 };
 
 function getCategoryIcon(name: string | null) {
@@ -85,7 +89,7 @@ function getCategoryIcon(name: string | null) {
   return CATEGORY_ICON_MAP[name] ?? { icon: Receipt, iconBg: 'bg-slate-100 dark:bg-slate-800', iconColor: 'text-slate-500' };
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Ledger {
   flex_cap_usd: number;
@@ -118,10 +122,18 @@ interface ReimbRequest {
   attachment_storage_bucket: string | null;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+interface ReceiptModal {
+  fileName: string;
+  bucket: string;
+  storagePath: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number | null | undefined) {
-  return `$${(n ?? 0).toFixed(2)}`;
+  const val = n ?? 0;
+  if (val < 0) return `-$${Math.abs(val).toFixed(2)}`;
+  return `$${val.toFixed(2)}`;
 }
 
 function formatDate(d: string | null) {
@@ -148,22 +160,157 @@ function IconCircle({ icon: Icon, bg, color, size = 'sm' }: { icon: React.Elemen
 
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
-  if (s === 'approved') {
-    return <Badge className="bg-green-500 hover:bg-green-500 text-white border-0 font-medium px-2.5">Approved</Badge>;
-  }
-  if (s === 'approved_off_cycle') {
-    return <Badge className="bg-purple-500 hover:bg-purple-500 text-white border-0 font-medium px-2.5">Approved Off-Cycle</Badge>;
-  }
-  if (s === 'pending' || s === 'pending_review') {
-    return <Badge className="bg-blue-500 hover:bg-blue-500 text-white border-0 font-medium px-2.5">Pending</Badge>;
-  }
-  if (s === 'rejected') {
-    return <Badge className="bg-red-500 hover:bg-red-500 text-white border-0 font-medium px-2.5">Rejected</Badge>;
-  }
+  if (s === 'approved') return <Badge className="bg-green-500 hover:bg-green-500 text-white border-0 font-medium px-2.5">Approved</Badge>;
+  if (s === 'approved_off_cycle') return <Badge className="bg-purple-500 hover:bg-purple-500 text-white border-0 font-medium px-2.5">Approved Off-Cycle</Badge>;
+  if (s === 'pending' || s === 'pending_review') return <Badge className="bg-blue-500 hover:bg-blue-500 text-white border-0 font-medium px-2.5">Pending</Badge>;
+  if (s === 'rejected') return <Badge className="bg-red-500 hover:bg-red-500 text-white border-0 font-medium px-2.5">Rejected</Badge>;
   return <Badge variant="outline" className="capitalize">{status.replace(/_/g, ' ')}</Badge>;
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Receipt Preview Modal ────────────────────────────────────────────────────
+
+function ReceiptPreviewModal({
+  modal,
+  onClose,
+}: {
+  modal: ReceiptModal;
+  onClose: () => void;
+}) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const ext = modal.fileName.split('.').pop()?.toLowerCase() ?? '';
+  const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
+  const isPdf = ext === 'pdf';
+  const isPreviewable = isImage || isPdf;
+
+  useEffect(() => {
+    async function fetchSignedUrl() {
+      setFetching(true);
+      setLoadError(false);
+      const { data, error } = await supabaseTyped.storage
+        .from(modal.bucket)
+        .createSignedUrl(modal.storagePath, 300); // 5-minute expiry for modal viewing
+      if (error || !data?.signedUrl) {
+        setLoadError(true);
+      } else {
+        setSignedUrl(data.signedUrl);
+      }
+      setFetching(false);
+    }
+    fetchSignedUrl();
+  }, [modal.bucket, modal.storagePath]);
+
+  // Close on overlay click
+  function handleOverlayClick(e: React.MouseEvent) {
+    if (e.target === overlayRef.current) onClose();
+  }
+
+  // Close on Escape
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={handleOverlayClick}
+    >
+      <div
+        className="relative bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ width: '60vw', maxWidth: '900px', height: '80vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Modal header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="text-sm font-medium truncate">{modal.fileName}</span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+            {signedUrl && (
+              <a
+                href={signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open in new tab
+              </a>
+            )}
+            <button
+              onClick={onClose}
+              className="ml-2 rounded-lg p-1.5 hover:bg-muted transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal body */}
+        <div className="flex-1 overflow-hidden flex items-center justify-center bg-muted/30">
+          {fetching ? (
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <div className="h-8 w-8 rounded-full border-2 border-muted-foreground/30 border-t-blue-500 animate-spin" />
+              <span className="text-sm">Loading receipt…</span>
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center gap-3 text-muted-foreground px-8 text-center">
+              <FileText className="h-10 w-10 opacity-40" />
+              <p className="text-sm">Could not load receipt. The link may have expired.</p>
+              <button
+                onClick={() => { setLoadError(false); setFetching(true); }}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          ) : !isPreviewable ? (
+            <div className="flex flex-col items-center gap-4 text-muted-foreground px-8 text-center">
+              <Download className="h-10 w-10 opacity-40" />
+              <p className="text-sm font-medium text-foreground">{modal.fileName}</p>
+              <p className="text-xs">This file type cannot be previewed directly.</p>
+              {signedUrl && (
+                <a
+                  href={signedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  Download / Open
+                </a>
+              )}
+            </div>
+          ) : isImage && signedUrl ? (
+            <img
+              src={signedUrl}
+              alt={modal.fileName}
+              className="max-w-full max-h-full object-contain p-4"
+            />
+          ) : isPdf && signedUrl ? (
+            <iframe
+              src={signedUrl}
+              title={modal.fileName}
+              className="w-full h-full border-0"
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Reimbursements() {
   const userId = useCurrentUserId();
@@ -173,7 +320,7 @@ export default function Reimbursements() {
   const [requests, setRequests] = useState<ReimbRequest[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  const [receiptModal, setReceiptModal] = useState<ReceiptModal | null>(null);
 
   const selectedMonthLabel = MONTHS.find(m => m.key === selectedMonthKey)?.label ?? selectedMonthKey;
 
@@ -213,7 +360,7 @@ export default function Reimbursements() {
       .eq('payout_month_key', selectedMonthKey)
       .order('spend_date', { ascending: true });
 
-    // 3. Attachments for this user/month
+    // 3. Attachments for this user
     const { data: attachDataRaw } = await supabase
       .from('reimbursement_request_attachments')
       .select('request_id, file_name, storage_bucket, storage_path')
@@ -245,7 +392,7 @@ export default function Reimbursements() {
 
     setRequests(rows);
 
-    // 4. Pending total (from requests, not ledger)
+    // 4. Pending total
     const pending = rows
       .filter(r => r.approval_status === 'pending' || r.approval_status === 'pending_review')
       .reduce((sum, r) => sum + r.spend_amount, 0);
@@ -256,26 +403,23 @@ export default function Reimbursements() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── Signed URL for receipt view ──────────────────────────────────────────
-  async function handleViewReceipt(bucket: string | null, path: string | null) {
-    if (!bucket || !path) return;
-    const { data, error } = await supabaseTyped.storage
-      .from(bucket)
-      .createSignedUrl(path, 60); // 60-second expiry
-    if (error || !data?.signedUrl) {
-      alert('Could not generate receipt link. Please try again.');
-      return;
-    }
-    window.open(data.signedUrl, '_blank');
+  // ── Open receipt modal ───────────────────────────────────────────────────
+  function handleViewReceipt(bucket: string | null, path: string | null, fileName: string | null) {
+    if (!bucket || !path || !fileName) return;
+    setReceiptModal({ fileName, bucket, storagePath: path });
   }
 
   // ── Derived values ───────────────────────────────────────────────────────
   const flexCap = ledger?.flex_cap_usd ?? 0;
-  const flexPaid = ledger?.eom_flex_paid ?? 0;
-  const flexRemaining = Math.max(0, flexCap - flexPaid);
-  const flexPct = flexCap > 0 ? Math.min(100, Math.round((flexPaid / flexCap) * 100)) : 0;
+  // Used = personal_flex_approved (actual submitted amount, may exceed cap)
+  const flexUsed = ledger?.personal_flex_approved ?? 0;
+  // Remaining = cap - used (allow negative to show overrun)
+  const flexRemaining = flexCap - flexUsed;
+  // Progress bar: clamp to 100% visually but show overrun in text
+  const flexPct = flexCap > 0 ? Math.min(100, Math.round((flexUsed / flexCap) * 100)) : 0;
+  const isOverCap = flexRemaining < 0;
 
-  // Personal flex categories (non-standalone) grouped by category name
+  // Personal flex categories
   const personalFlexCategories = [
     { name: 'Internet (not phone)', display: 'Internet (not phone)' },
     { name: 'Health/Mental Health', display: 'Health/Mental Health' },
@@ -290,7 +434,7 @@ export default function Reimbursements() {
     return { ...cat, amount: total };
   });
 
-  // Standalone claims from ledger
+  // Standalone claims from ledger (hide zero-value rows)
   const standaloneClaims = [
     { name: 'Midjourney',           icon: Image,            iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: ledger?.midjourney_used ?? 0 },
     { name: 'Manager Claim',        icon: Receipt,          iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: ledger?.manager_claim_used ?? 0 },
@@ -298,50 +442,15 @@ export default function Reimbursements() {
     { name: 'Client Expense Claim', icon: Receipt,          iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: ledger?.client_expense_claim_used ?? 0 },
     { name: 'Crypto Stipend',       icon: CircleDollarSign, iconBg: 'bg-amber-100 dark:bg-amber-900/40', iconColor: 'text-amber-500',   amount: ledger?.crypto_stipend ?? 0 },
     { name: 'Equipment',            icon: Package,          iconBg: 'bg-teal-100 dark:bg-teal-900/40',   iconColor: 'text-teal-500',    amount: ledger?.equipment_eligible ?? 0 },
-  ].filter(c => c.amount > 0); // hide zero-value rows
+  ].filter(c => c.amount > 0);
 
   // Summary cards
   const summaryCards = [
-    {
-      label: 'Monthly Flex Cap',
-      value: fmt(ledger?.flex_cap_usd),
-      helper: 'Monthly cap',
-      icon: DollarSign,
-      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
-      iconColor: 'text-blue-500',
-    },
-    {
-      label: 'Approved This Month',
-      value: fmt(ledger?.eom_flex_paid),
-      helper: 'Total approved amount',
-      icon: TrendingUp,
-      iconBg: 'bg-green-100 dark:bg-green-900/40',
-      iconColor: 'text-green-500',
-    },
-    {
-      label: 'Pending Review',
-      value: fmt(pendingTotal),
-      helper: 'Awaiting approval',
-      icon: Clock,
-      iconBg: 'bg-amber-100 dark:bg-amber-900/40',
-      iconColor: 'text-amber-500',
-    },
-    {
-      label: 'Off-Cycle Owed',
-      value: fmt(ledger?.off_cycle_owed),
-      helper: 'To be paid off-cycle',
-      icon: RefreshCw,
-      iconBg: 'bg-purple-100 dark:bg-purple-900/40',
-      iconColor: 'text-purple-500',
-    },
-    {
-      label: 'Total Paid',
-      value: fmt(ledger?.total_payout_usd),
-      helper: 'Paid this Month',
-      icon: CheckCircle2,
-      iconBg: 'bg-teal-100 dark:bg-teal-900/40',
-      iconColor: 'text-teal-500',
-    },
+    { label: 'Monthly Flex Cap',    value: fmt(ledger?.flex_cap_usd),    helper: 'Monthly cap',           icon: DollarSign,    iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
+    { label: 'Approved This Month', value: fmt(ledger?.eom_flex_paid),   helper: 'Total approved amount', icon: TrendingUp,    iconBg: 'bg-green-100 dark:bg-green-900/40',  iconColor: 'text-green-500' },
+    { label: 'Pending Review',      value: fmt(pendingTotal),            helper: 'Awaiting approval',     icon: Clock,         iconBg: 'bg-amber-100 dark:bg-amber-900/40',  iconColor: 'text-amber-500' },
+    { label: 'Off-Cycle Owed',      value: fmt(ledger?.off_cycle_owed),  helper: 'To be paid off-cycle',  icon: RefreshCw,     iconBg: 'bg-purple-100 dark:bg-purple-900/40', iconColor: 'text-purple-500' },
+    { label: 'Total Paid',          value: fmt(ledger?.total_payout_usd), helper: 'Paid this Month',      icon: CheckCircle2,  iconBg: 'bg-teal-100 dark:bg-teal-900/40',    iconColor: 'text-teal-500' },
   ];
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -362,9 +471,7 @@ export default function Reimbursements() {
               <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedMonthKey} onValueChange={setSelectedMonthKey}>
                 <SelectTrigger className="border-0 shadow-none h-auto p-0 text-sm w-32 focus:ring-0">
-                  <SelectValue>
-                    {selectedMonthLabel}
-                  </SelectValue>
+                  <SelectValue>{selectedMonthLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m) => (
@@ -380,7 +487,7 @@ export default function Reimbursements() {
               </Select>
             </div>
             <Button size="sm" className="gap-1.5" asChild>
-              <a href={TALLY_FORM_URL} target="_blank" rel="noopener noreferrer">
+              <a href={SUBMIT_URL} target="_blank" rel="noopener noreferrer">
                 <Upload className="h-3.5 w-3.5" />
                 Submit Reimbursement
               </a>
@@ -438,16 +545,28 @@ export default function Reimbursements() {
               <>
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Used: <strong className="text-foreground">{fmt(flexPaid)}</strong> / {fmt(flexCap)}</span>
-                    <span className="text-muted-foreground">Remaining: <strong className="text-foreground">{fmt(flexRemaining)}</strong></span>
+                    <span className="text-muted-foreground">
+                      Used: <strong className="text-foreground">{fmt(flexUsed)}</strong> / {fmt(flexCap)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      Remaining:{' '}
+                      <strong className={isOverCap ? 'text-red-500' : 'text-foreground'}>
+                        {fmt(flexRemaining)}
+                      </strong>
+                    </span>
                   </div>
                   <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-blue-500 transition-all"
+                      className={`h-full rounded-full transition-all ${isOverCap ? 'bg-red-500' : 'bg-blue-500'}`}
                       style={{ width: `${flexPct}%` }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground text-right">{flexPct}% used</p>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{flexPct}% used</span>
+                    {isOverCap && (
+                      <span className="text-red-500 font-medium">Exceeded cap by {fmt(Math.abs(flexRemaining))}</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="divide-y divide-border">
@@ -564,7 +683,11 @@ export default function Reimbursements() {
                           {row.attachment_storage_path ? (
                             <button
                               className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                              onClick={() => handleViewReceipt(row.attachment_storage_bucket, row.attachment_storage_path)}
+                              onClick={() => handleViewReceipt(
+                                row.attachment_storage_bucket,
+                                row.attachment_storage_path,
+                                row.attachment_file_name
+                              )}
                             >
                               View
                             </button>
@@ -595,6 +718,15 @@ export default function Reimbursements() {
         </div>
 
       </div>
+
+      {/* ── Receipt Preview Modal ── */}
+      {receiptModal && (
+        <ReceiptPreviewModal
+          modal={receiptModal}
+          onClose={() => setReceiptModal(null)}
+        />
+      )}
+
     </DashboardLayout>
   );
 }

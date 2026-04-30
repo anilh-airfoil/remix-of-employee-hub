@@ -1,9 +1,11 @@
-// Phase 9.2 Tweak — Reimbursements page connected to Supabase real data.
+// Phase 9.2 Tweak + Phase 9.3 — Reimbursements page connected to Supabase real data.
 // Fix: Used = personal_flex_approved (not eom_flex_paid). Remaining = cap - used, allow negative.
 // Fix: Submit URL → https://forms.airfoil.studio/internal
 // Fix: View receipt → in-dashboard modal (60% viewport), signed URL, PDF/image preview.
+// Phase 9.3: Owner/Admin can view any member's data via ?user_id query param.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +56,7 @@ import { supabase as supabaseTyped } from '@/integrations/supabase/client';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const supabase = supabaseTyped as any;
 import { useCurrentUserId } from '@/contexts/UserContext';
+import { useIsAdmin } from '@/hooks/useRoles';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -313,8 +316,18 @@ function ReceiptPreviewModal({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Reimbursements() {
-  const userId = useCurrentUserId();
+  const loggedInUserId = useCurrentUserId();
+  const isAdminOrOwner = useIsAdmin();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // If ?user_id is present and viewer is admin/owner, show that member's data
+  const queryUserId = searchParams.get('user_id');
+  const isViewingOther = isAdminOrOwner && !!queryUserId && queryUserId !== loggedInUserId;
+  const userId = isViewingOther ? queryUserId : loggedInUserId;
+
   const [selectedMonthKey, setSelectedMonthKey] = useState('2026-04');
+  const [viewedMemberName, setViewedMemberName] = useState<string | null>(null);
 
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [requests, setRequests] = useState<ReimbRequest[]>([]);
@@ -323,6 +336,22 @@ export default function Reimbursements() {
   const [receiptModal, setReceiptModal] = useState<ReceiptModal | null>(null);
 
   const selectedMonthLabel = MONTHS.find(m => m.key === selectedMonthKey)?.label ?? selectedMonthKey;
+
+  // Fetch the viewed member's name when in admin-view-other mode
+  useEffect(() => {
+    if (!isViewingOther || !queryUserId) {
+      setViewedMemberName(null);
+      return;
+    }
+    supabase
+      .from('profiles')
+      .select('name')
+      .eq('user_id', queryUserId)
+      .maybeSingle()
+      .then(({ data }: { data: { name: string | null } | null }) => {
+        setViewedMemberName(data?.name ?? null);
+      });
+  }, [isViewingOther, queryUserId]);
 
   // ── Fetch ledger + requests ──────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -459,12 +488,31 @@ export default function Reimbursements() {
       <div className="mx-auto max-w-6xl space-y-5">
 
         {/* ── 1. Header ── */}
+        {/* Back to Team Directory link — only shown when admin is viewing another member */}
+        {isViewingOther && (
+          <button
+            onClick={() => navigate('/team')}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors -mt-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Team Directory
+          </button>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-heading font-bold tracking-tight">Reimbursements</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              Track your submissions, payout status, and monthly flex usage.
-            </p>
+            {isViewingOther ? (
+              <p className="text-muted-foreground text-sm mt-0.5">
+                Viewing <strong className="text-foreground">{viewedMemberName ?? 'team member'}</strong>'s reimbursement data
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm mt-0.5">
+                Track your submissions, payout status, and monthly flex usage.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="flex items-center gap-1.5 border border-border rounded-md px-3 h-9 bg-background">

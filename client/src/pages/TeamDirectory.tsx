@@ -8,8 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Users, UserCheck, UserX, X } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Search, Users, UserCheck, UserX, X, ChevronDown, User, Receipt } from 'lucide-react';
 import ViewingAsBanner from '@/components/layout/ViewingAsBanner';
+import { useIsAdmin } from '@/hooks/useRoles';
 
 // Session storage key for preserving list state
 const STATE_KEY = 'teamdir_state';
@@ -138,14 +145,22 @@ export default function TeamDirectory() {
   const activeCount = members.filter(m => m.status === 'active').length;
   const inactiveCount = members.filter(m => m.status === 'not_active').length;
 
-  function handleViewUser(userId: string) {
-    // Save current state before navigating away
+  function saveState() {
     sessionStorage.setItem(STATE_KEY, JSON.stringify({
       search,
       statusFilter,
       scrollY: window.scrollY,
     }));
+  }
+
+  function handleViewProfile(userId: string) {
+    saveState();
     navigate(`/profile?userId=${userId}`);
+  }
+
+  function handleViewReimbursements(userId: string) {
+    saveState();
+    navigate(`/reimbursements?user_id=${userId}`);
   }
 
   const filterButtons: { label: string; value: StatusFilter }[] = [
@@ -154,10 +169,13 @@ export default function TeamDirectory() {
     { label: 'Not Active', value: 'not_active' },
   ];
 
+  const isAdminOrOwner = useIsAdmin();
+
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6">
         <ViewingAsBanner />
+        {/* isAdminOrOwner used to conditionally show dropdown vs plain View */}
 
         <div>
           <h1 className="text-2xl font-heading font-bold tracking-tight">Team Directory</h1>
@@ -272,7 +290,7 @@ export default function TeamDirectory() {
                       <TableRow
                         key={member.id}
                         className="cursor-pointer"
-                        onClick={() => handleViewUser(member.id)}
+                        onClick={() => handleViewProfile(member.id)}
                       >
                         <TableCell className="font-medium whitespace-nowrap">
                           {member.name || <span className="text-muted-foreground italic">No name</span>}
@@ -292,16 +310,44 @@ export default function TeamDirectory() {
                         <TableCell className="whitespace-nowrap hidden md:table-cell">{member.department ?? '—'}</TableCell>
                         <TableCell className="whitespace-nowrap hidden lg:table-cell capitalize">{member.contract_type ?? '—'}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleViewUser(member.id);
-                            }}
-                          >
-                            View
-                          </Button>
+                          {isAdminOrOwner ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-1"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  View <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuItem
+                                  className="gap-2 cursor-pointer"
+                                  onClick={e => { e.stopPropagation(); handleViewProfile(member.id); }}
+                                >
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  Profile
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="gap-2 cursor-pointer"
+                                  onClick={e => { e.stopPropagation(); handleViewReimbursements(member.id); }}
+                                >
+                                  <Receipt className="h-4 w-4 text-muted-foreground" />
+                                  Reimbursements
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={e => { e.stopPropagation(); handleViewProfile(member.id); }}
+                            >
+                              View
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

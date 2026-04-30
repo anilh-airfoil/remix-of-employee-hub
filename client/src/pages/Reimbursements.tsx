@@ -1,14 +1,14 @@
-// Phase 8.1 — Reimbursement Page UI (reference-matched layout)
-// Static sample data only. No Supabase connection yet.
-// Icons: colored circle backgrounds per reference image.
-// Status badges: inline with amount on right side.
-// Block layout: summary cards row → banner → flex+standalone side-by-side → history table → footer.
+// Phase 9.2 — Reimbursements page connected to Supabase real data.
+// Data sources: flex_monthly_ledgers, reimbursement_requests, reimbursement_request_attachments, reimbursement_categories.
+// Receipt view: generates a signed URL from the private reimbursement-attachments bucket.
+// Layout/styling preserved from Phase 8.1 reference design.
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -43,100 +43,98 @@ import {
   Calendar,
   Upload,
   Lock,
+  Package,
 } from 'lucide-react';
+import { supabase as supabaseTyped } from '@/integrations/supabase/client';
+// Cast to any to query tables not yet in generated types (flex_monthly_ledgers, reimbursement_*)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabase = supabaseTyped as any;
+import { useCurrentUserId } from '@/contexts/UserContext';
 
-// ─── Static placeholder data ───────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 const TALLY_FORM_URL = 'https://tally.so';
 
-const MONTHS = [
-  'January 2026', 'February 2026', 'March 2026', 'April 2026',
-  'May 2026', 'June 2026',
+// Month display → month_key mapping. Extend as more months are added.
+const MONTHS: { label: string; key: string }[] = [
+  { label: 'April 2026', key: '2026-04' },
+  { label: 'March 2026', key: '2026-03' },
+  { label: 'February 2026', key: '2026-02' },
+  { label: 'January 2026', key: '2026-01' },
 ];
 
-// Summary cards — icon, bg color, text color match reference
-const summaryCards = [
-  {
-    label: 'Monthly Flex Cap',
-    value: '$300.00',
-    helper: 'Monthly cap',
-    icon: DollarSign,
-    iconBg: 'bg-blue-100 dark:bg-blue-900/40',
-    iconColor: 'text-blue-500',
-  },
-  {
-    label: 'Approved This Month',
-    value: '$164.50',
-    helper: 'Total approved amount',
-    icon: TrendingUp,
-    iconBg: 'bg-green-100 dark:bg-green-900/40',
-    iconColor: 'text-green-500',
-  },
-  {
-    label: 'Pending Review',
-    value: '$82.00',
-    helper: 'Awaiting approval',
-    icon: Clock,
-    iconBg: 'bg-amber-100 dark:bg-amber-900/40',
-    iconColor: 'text-amber-500',
-  },
-  {
-    label: 'Off-Cycle Owed',
-    value: '$25.00',
-    helper: 'To be paid off-cycle',
-    icon: RefreshCw,
-    iconBg: 'bg-purple-100 dark:bg-purple-900/40',
-    iconColor: 'text-purple-500',
-  },
-  {
-    label: 'Total Paid',
-    value: '$271.00',
-    helper: 'Paid this Month',
-    icon: CheckCircle2,
-    iconBg: 'bg-teal-100 dark:bg-teal-900/40',
-    iconColor: 'text-teal-500',
-  },
-];
+// ─── Category icon map (by category_name_snapshot / category name) ──────────
 
-// Flex breakdown — each category has a colored icon circle
-const flexBreakdown = [
-  { category: 'Internet', icon: Wifi,    iconBg: 'bg-blue-100 dark:bg-blue-900/40',   iconColor: 'text-blue-500',   amount: 30.0 },
-  { category: 'Gym',      icon: Dumbbell, iconBg: 'bg-green-100 dark:bg-green-900/40', iconColor: 'text-green-500',  amount: 45.0 },
-  { category: 'Health',   icon: Heart,   iconBg: 'bg-red-100 dark:bg-red-900/40',     iconColor: 'text-red-500',    amount: 20.0 },
-  { category: 'Co-Working', icon: Monitor, iconBg: 'bg-purple-100 dark:bg-purple-900/40', iconColor: 'text-purple-500', amount: 69.5 },
-];
-
-const flexUsed = 164.5;
-const flexCap = 300.0;
-const flexRemaining = flexCap - flexUsed;
-const flexPct = Math.round((flexUsed / flexCap) * 100);
-
-// Standalone claims — icon per category
-const standaloneClaims = [
-  { name: 'Midjourney',           icon: Image,           iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: '$10.00',  status: 'Approved' },
-  { name: 'Travel',               icon: Plane,           iconBg: 'bg-blue-100 dark:bg-blue-900/40',   iconColor: 'text-blue-500',    amount: '$120.00', status: 'Pending' },
-  { name: 'Client Expense Claim', icon: Receipt,         iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: '$45.00',  status: 'Approved' },
-  { name: 'Crypto Stipend',       icon: CircleDollarSign, iconBg: 'bg-slate-100 dark:bg-slate-800',   iconColor: 'text-slate-500',   amount: '$60.00',  status: 'Approved' },
-];
-
-// History table — category icon mapping
-const categoryIcon: Record<string, { icon: React.ElementType; iconBg: string; iconColor: string }> = {
-  Internet:    { icon: Wifi,     iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
-  Gym:         { icon: Dumbbell, iconBg: 'bg-green-100 dark:bg-green-900/40',  iconColor: 'text-green-500' },
-  Health:      { icon: Heart,    iconBg: 'bg-red-100 dark:bg-red-900/40',      iconColor: 'text-red-500' },
-  'Co-Working': { icon: Monitor, iconBg: 'bg-purple-100 dark:bg-purple-900/40', iconColor: 'text-purple-500' },
-  Travel:      { icon: Plane,    iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
+const CATEGORY_ICON_MAP: Record<string, { icon: React.ElementType; iconBg: string; iconColor: string }> = {
+  'Internet (not phone)': { icon: Wifi,             iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
+  'Internet':             { icon: Wifi,             iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
+  'Gym':                  { icon: Dumbbell,         iconBg: 'bg-green-100 dark:bg-green-900/40',  iconColor: 'text-green-500' },
+  'Health/Mental Health': { icon: Heart,            iconBg: 'bg-red-100 dark:bg-red-900/40',      iconColor: 'text-red-500' },
+  'Health':               { icon: Heart,            iconBg: 'bg-red-100 dark:bg-red-900/40',      iconColor: 'text-red-500' },
+  'Co-Working':           { icon: Monitor,          iconBg: 'bg-purple-100 dark:bg-purple-900/40', iconColor: 'text-purple-500' },
+  'Travel':               { icon: Plane,            iconBg: 'bg-blue-100 dark:bg-blue-900/40',    iconColor: 'text-blue-500' },
+  'Midjourney':           { icon: Image,            iconBg: 'bg-slate-100 dark:bg-slate-800',     iconColor: 'text-slate-500' },
+  'Crypto Stipend':       { icon: CircleDollarSign, iconBg: 'bg-amber-100 dark:bg-amber-900/40',  iconColor: 'text-amber-500' },
+  'Equipment':            { icon: Package,          iconBg: 'bg-teal-100 dark:bg-teal-900/40',    iconColor: 'text-teal-500' },
+  'Manager/Business/Other': { icon: Receipt,        iconBg: 'bg-slate-100 dark:bg-slate-800',     iconColor: 'text-slate-500' },
+  'Client Expense Claim': { icon: Receipt,          iconBg: 'bg-slate-100 dark:bg-slate-800',     iconColor: 'text-slate-500' },
 };
 
-const historyRows = [
-  { date: 'Apr 23, 2026', category: 'Internet',    description: 'Monthly home internet', amount: '$30.00',  status: 'Approved',      payout: 'Apr 2026', method: 'MuralPay', receipt: 'internet_apr.pdf' },
-  { date: 'Apr 21, 2026', category: 'Gym',         description: 'April membership',      amount: '$45.00',  status: 'Approved',      payout: 'Apr 2026', method: 'MuralPay', receipt: 'gym_apr_receipt.jpg' },
-  { date: 'Apr 18, 2026', category: 'Health',      description: 'Massage claim',         amount: '$37.00',  status: 'Pending Review', payout: 'May 2026', method: 'Rippling', receipt: 'massage_receipt.pdf' },
-  { date: 'Apr 15, 2026', category: 'Co-Working',  description: 'WeWork day pass',       amount: '$32.50',  status: 'Approved',      payout: 'Apr 2026', method: 'MuralPay', receipt: 'wework_apr15.pdf' },
-  { date: 'Apr 10, 2026', category: 'Travel',      description: 'Client meeting taxi',   amount: '$120.00', status: 'Pending',       payout: 'May 2026', method: 'Rippling', receipt: 'taxi_receipt.pdf' },
-];
+function getCategoryIcon(name: string | null) {
+  if (!name) return { icon: Receipt, iconBg: 'bg-slate-100 dark:bg-slate-800', iconColor: 'text-slate-500' };
+  return CATEGORY_ICON_MAP[name] ?? { icon: Receipt, iconBg: 'bg-slate-100 dark:bg-slate-800', iconColor: 'text-slate-500' };
+}
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Ledger {
+  flex_cap_usd: number;
+  eom_flex_paid: number;
+  off_cycle_owed: number;
+  total_payout_usd: number;
+  personal_flex_approved: number;
+  midjourney_used: number;
+  manager_claim_used: number;
+  approved_travel_used: number;
+  client_expense_claim_used: number;
+  crypto_stipend: number;
+  equipment_eligible: number;
+  others: number;
+}
+
+interface ReimbRequest {
+  id: string;
+  source_submission_id: string | null;
+  spend_date: string | null;
+  spend_amount: number;
+  approved_amount: number | null;
+  approval_status: string;
+  payout_month_key: string | null;
+  category_name_snapshot: string | null;
+  category_name: string | null;
+  is_standalone: boolean | null;
+  attachment_file_name: string | null;
+  attachment_storage_path: string | null;
+  attachment_storage_bucket: string | null;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmt(n: number | null | undefined) {
+  return `$${(n ?? 0).toFixed(2)}`;
+}
+
+function formatDate(d: string | null) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatMonthLabel(key: string) {
+  const [year, month] = key.split('-');
+  const dt = new Date(Number(year), Number(month) - 1, 1);
+  return dt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
 
 function IconCircle({ icon: Icon, bg, color, size = 'sm' }: { icon: React.ElementType; bg: string; color: string; size?: 'sm' | 'md' }) {
   const dim = size === 'md' ? 'w-11 h-11' : 'w-8 h-8';
@@ -149,23 +147,204 @@ function IconCircle({ icon: Icon, bg, color, size = 'sm' }: { icon: React.Elemen
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'Approved') {
+  const s = status.toLowerCase();
+  if (s === 'approved') {
     return <Badge className="bg-green-500 hover:bg-green-500 text-white border-0 font-medium px-2.5">Approved</Badge>;
   }
-  if (status === 'Pending Review' || status === 'Pending') {
+  if (s === 'approved_off_cycle') {
+    return <Badge className="bg-purple-500 hover:bg-purple-500 text-white border-0 font-medium px-2.5">Approved Off-Cycle</Badge>;
+  }
+  if (s === 'pending' || s === 'pending_review') {
     return <Badge className="bg-blue-500 hover:bg-blue-500 text-white border-0 font-medium px-2.5">Pending</Badge>;
   }
-  if (status === 'Rejected') {
+  if (s === 'rejected') {
     return <Badge className="bg-red-500 hover:bg-red-500 text-white border-0 font-medium px-2.5">Rejected</Badge>;
   }
-  return <Badge variant="outline">{status}</Badge>;
+  return <Badge variant="outline" className="capitalize">{status.replace(/_/g, ' ')}</Badge>;
 }
 
-// ─── Page ───────────────────────────────────────────────────────────────────
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Reimbursements() {
-  const [selectedMonth, setSelectedMonth] = useState('April 2026');
+  const userId = useCurrentUserId();
+  const [selectedMonthKey, setSelectedMonthKey] = useState('2026-04');
 
+  const [ledger, setLedger] = useState<Ledger | null>(null);
+  const [requests, setRequests] = useState<ReimbRequest[]>([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+
+  const selectedMonthLabel = MONTHS.find(m => m.key === selectedMonthKey)?.label ?? selectedMonthKey;
+
+  // ── Fetch ledger + requests ──────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+
+    // 1. Ledger row
+    const { data: ledgerData } = await supabase
+      .from('flex_monthly_ledgers')
+      .select('flex_cap_usd, eom_flex_paid, off_cycle_owed, total_payout_usd, personal_flex_approved, midjourney_used, manager_claim_used, approved_travel_used, client_expense_claim_used, crypto_stipend, equipment_eligible, others')
+      .eq('user_id', userId)
+      .eq('month_key', selectedMonthKey)
+      .maybeSingle();
+
+    setLedger(ledgerData as Ledger | null);
+
+    // 2. Reimbursement requests + category join
+    const { data: reqData } = await supabase
+      .from('reimbursement_requests')
+      .select(`
+        id,
+        source_submission_id,
+        spend_date,
+        spend_amount,
+        approved_amount,
+        approval_status,
+        payout_month_key,
+        category_name_snapshot,
+        reimbursement_categories!category_id (
+          name,
+          is_standalone
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('payout_month_key', selectedMonthKey)
+      .order('spend_date', { ascending: true });
+
+    // 3. Attachments for this user/month
+    const { data: attachDataRaw } = await supabase
+      .from('reimbursement_request_attachments')
+      .select('request_id, file_name, storage_bucket, storage_path')
+      .eq('user_id', userId);
+
+    const attachData = attachDataRaw as Array<{ request_id: string; file_name: string; storage_bucket: string; storage_path: string }> | null;
+    const attachMap = new Map<string, { file_name: string; storage_bucket: string; storage_path: string }>();
+    (attachData ?? []).forEach(a => attachMap.set(a.request_id, a));
+
+    const rows: ReimbRequest[] = (reqData ?? []).map((r: any) => {
+      const cat = r.reimbursement_categories;
+      const att = attachMap.get(r.id);
+      return {
+        id: r.id,
+        source_submission_id: r.source_submission_id,
+        spend_date: r.spend_date,
+        spend_amount: Number(r.spend_amount),
+        approved_amount: r.approved_amount != null ? Number(r.approved_amount) : null,
+        approval_status: r.approval_status,
+        payout_month_key: r.payout_month_key,
+        category_name_snapshot: r.category_name_snapshot,
+        category_name: cat?.name ?? r.category_name_snapshot,
+        is_standalone: cat?.is_standalone ?? false,
+        attachment_file_name: att?.file_name ?? null,
+        attachment_storage_path: att?.storage_path ?? null,
+        attachment_storage_bucket: att?.storage_bucket ?? null,
+      };
+    });
+
+    setRequests(rows);
+
+    // 4. Pending total (from requests, not ledger)
+    const pending = rows
+      .filter(r => r.approval_status === 'pending' || r.approval_status === 'pending_review')
+      .reduce((sum, r) => sum + r.spend_amount, 0);
+    setPendingTotal(pending);
+
+    setLoading(false);
+  }, [userId, selectedMonthKey]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Signed URL for receipt view ──────────────────────────────────────────
+  async function handleViewReceipt(bucket: string | null, path: string | null) {
+    if (!bucket || !path) return;
+    const { data, error } = await supabaseTyped.storage
+      .from(bucket)
+      .createSignedUrl(path, 60); // 60-second expiry
+    if (error || !data?.signedUrl) {
+      alert('Could not generate receipt link. Please try again.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank');
+  }
+
+  // ── Derived values ───────────────────────────────────────────────────────
+  const flexCap = ledger?.flex_cap_usd ?? 0;
+  const flexPaid = ledger?.eom_flex_paid ?? 0;
+  const flexRemaining = Math.max(0, flexCap - flexPaid);
+  const flexPct = flexCap > 0 ? Math.min(100, Math.round((flexPaid / flexCap) * 100)) : 0;
+
+  // Personal flex categories (non-standalone) grouped by category name
+  const personalFlexCategories = [
+    { name: 'Internet (not phone)', display: 'Internet (not phone)' },
+    { name: 'Health/Mental Health', display: 'Health/Mental Health' },
+    { name: 'Gym', display: 'Gym' },
+    { name: 'Co-Working', display: 'Co-Working' },
+  ];
+
+  const flexByCategory = personalFlexCategories.map(cat => {
+    const total = requests
+      .filter(r => !r.is_standalone && r.category_name === cat.name && r.approval_status === 'approved')
+      .reduce((sum, r) => sum + (r.approved_amount ?? r.spend_amount), 0);
+    return { ...cat, amount: total };
+  });
+
+  // Standalone claims from ledger
+  const standaloneClaims = [
+    { name: 'Midjourney',           icon: Image,            iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: ledger?.midjourney_used ?? 0 },
+    { name: 'Manager Claim',        icon: Receipt,          iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: ledger?.manager_claim_used ?? 0 },
+    { name: 'Travel',               icon: Plane,            iconBg: 'bg-blue-100 dark:bg-blue-900/40',   iconColor: 'text-blue-500',    amount: ledger?.approved_travel_used ?? 0 },
+    { name: 'Client Expense Claim', icon: Receipt,          iconBg: 'bg-slate-100 dark:bg-slate-800',    iconColor: 'text-slate-500',   amount: ledger?.client_expense_claim_used ?? 0 },
+    { name: 'Crypto Stipend',       icon: CircleDollarSign, iconBg: 'bg-amber-100 dark:bg-amber-900/40', iconColor: 'text-amber-500',   amount: ledger?.crypto_stipend ?? 0 },
+    { name: 'Equipment',            icon: Package,          iconBg: 'bg-teal-100 dark:bg-teal-900/40',   iconColor: 'text-teal-500',    amount: ledger?.equipment_eligible ?? 0 },
+  ].filter(c => c.amount > 0); // hide zero-value rows
+
+  // Summary cards
+  const summaryCards = [
+    {
+      label: 'Monthly Flex Cap',
+      value: fmt(ledger?.flex_cap_usd),
+      helper: 'Monthly cap',
+      icon: DollarSign,
+      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+      iconColor: 'text-blue-500',
+    },
+    {
+      label: 'Approved This Month',
+      value: fmt(ledger?.eom_flex_paid),
+      helper: 'Total approved amount',
+      icon: TrendingUp,
+      iconBg: 'bg-green-100 dark:bg-green-900/40',
+      iconColor: 'text-green-500',
+    },
+    {
+      label: 'Pending Review',
+      value: fmt(pendingTotal),
+      helper: 'Awaiting approval',
+      icon: Clock,
+      iconBg: 'bg-amber-100 dark:bg-amber-900/40',
+      iconColor: 'text-amber-500',
+    },
+    {
+      label: 'Off-Cycle Owed',
+      value: fmt(ledger?.off_cycle_owed),
+      helper: 'To be paid off-cycle',
+      icon: RefreshCw,
+      iconBg: 'bg-purple-100 dark:bg-purple-900/40',
+      iconColor: 'text-purple-500',
+    },
+    {
+      label: 'Total Paid',
+      value: fmt(ledger?.total_payout_usd),
+      helper: 'Paid this Month',
+      icon: CheckCircle2,
+      iconBg: 'bg-teal-100 dark:bg-teal-900/40',
+      iconColor: 'text-teal-500',
+    },
+  ];
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-5">
@@ -179,21 +358,22 @@ export default function Reimbursements() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Month selector styled like reference: calendar icon + dropdown */}
             <div className="flex items-center gap-1.5 border border-border rounded-md px-3 h-9 bg-background">
               <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <Select value={selectedMonthKey} onValueChange={setSelectedMonthKey}>
                 <SelectTrigger className="border-0 shadow-none h-auto p-0 text-sm w-32 focus:ring-0">
-                  <SelectValue />
+                  <SelectValue>
+                    {selectedMonthLabel}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m) => (
                     <SelectPrimitive.Item
-                      key={m}
-                      value={m}
+                      key={m.key}
+                      value={m.key}
                       className="relative flex w-full cursor-default select-none items-center rounded-sm px-3 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
                     >
-                      <SelectPrimitive.ItemText>{m}</SelectPrimitive.ItemText>
+                      <SelectPrimitive.ItemText>{m.label}</SelectPrimitive.ItemText>
                     </SelectPrimitive.Item>
                   ))}
                 </SelectContent>
@@ -213,10 +393,18 @@ export default function Reimbursements() {
           {summaryCards.map((card) => (
             <Card key={card.label} className="shadow-sm border border-border">
               <CardContent className="py-5 px-4 flex items-center gap-3.5">
-                <IconCircle icon={card.icon} bg={card.iconBg} color={card.iconColor} size="md" />
+                {loading ? (
+                  <Skeleton className="w-11 h-11 rounded-full" />
+                ) : (
+                  <IconCircle icon={card.icon} bg={card.iconBg} color={card.iconColor} size="md" />
+                )}
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground leading-tight mb-1 whitespace-nowrap">{card.label}</p>
-                  <p className="text-xl font-bold font-heading tracking-tight leading-none">{card.value}</p>
+                  {loading ? (
+                    <Skeleton className="h-6 w-20 mt-1" />
+                  ) : (
+                    <p className="text-xl font-bold font-heading tracking-tight leading-none">{card.value}</p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1 leading-tight whitespace-nowrap">{card.helper}</p>
                 </div>
               </CardContent>
@@ -229,7 +417,7 @@ export default function Reimbursements() {
           <Info className="h-4 w-4 flex-shrink-0 text-blue-500" />
           <span>
             <strong className="text-blue-700 dark:text-blue-200">Submission cut-off: 25th.</strong>{' '}
-            Submission after 25th will be process as off-cycle and paid along next regular payout
+            Submissions after the 25th will be processed as off-cycle and paid along with the next regular payout.
           </span>
         </div>
 
@@ -238,53 +426,73 @@ export default function Reimbursements() {
 
           {/* Flex Breakdown */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
-            <h2 className="font-heading font-semibold text-base">{selectedMonth} Flex Breakdown</h2>
+            <h2 className="font-heading font-semibold text-base">{selectedMonthLabel} Flex Breakdown</h2>
 
-            {/* Progress row */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Used: <strong className="text-foreground">${flexUsed.toFixed(2)}</strong> / ${flexCap.toFixed(2)}</span>
-                <span className="text-muted-foreground">Remaining: <strong className="text-foreground">${flexRemaining.toFixed(2)}</strong></span>
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-2.5 w-full rounded-full" />
+                {[1,2,3,4].map(i => <Skeleton key={i} className="h-10 w-full" />)}
               </div>
-              <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-blue-500 transition-all"
-                  style={{ width: `${flexPct}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Category rows */}
-            <div className="divide-y divide-border">
-              {flexBreakdown.map((row) => (
-                <div key={row.category} className="flex items-center justify-between py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <IconCircle icon={row.icon} bg={row.iconBg} color={row.iconColor} />
-                    <span className="text-sm">{row.category}</span>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Used: <strong className="text-foreground">{fmt(flexPaid)}</strong> / {fmt(flexCap)}</span>
+                    <span className="text-muted-foreground">Remaining: <strong className="text-foreground">{fmt(flexRemaining)}</strong></span>
                   </div>
-                  <span className="text-sm font-medium">${row.amount.toFixed(2)}</span>
+                  <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all"
+                      style={{ width: `${flexPct}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-right">{flexPct}% used</p>
                 </div>
-              ))}
-            </div>
+
+                <div className="divide-y divide-border">
+                  {flexByCategory.map((row) => {
+                    const ci = getCategoryIcon(row.name);
+                    return (
+                      <div key={row.name} className="flex items-center justify-between py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <IconCircle icon={ci.icon} bg={ci.iconBg} color={ci.iconColor} />
+                          <span className="text-sm">{row.display}</span>
+                        </div>
+                        <span className="text-sm font-medium">{fmt(row.amount)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Standalone Claims */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
             <h2 className="font-heading font-semibold text-base mb-4">Standalone Claims</h2>
-            <div className="divide-y divide-border">
-              {standaloneClaims.map((claim) => (
-                <div key={claim.name} className="flex items-center justify-between py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <IconCircle icon={claim.icon} bg={claim.iconBg} color={claim.iconColor} />
-                    <span className="text-sm">{claim.name}</span>
+            {loading ? (
+              <div className="space-y-3">
+                {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
+            ) : standaloneClaims.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No standalone claims this month.</p>
+            ) : (
+              <div className="divide-y divide-border">
+                {standaloneClaims.map((claim) => (
+                  <div key={claim.name} className="flex items-center justify-between py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <IconCircle icon={claim.icon} bg={claim.iconBg} color={claim.iconColor} />
+                      <span className="text-sm">{claim.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">{fmt(claim.amount)}</span>
+                      <StatusBadge status="approved" />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">{claim.amount}</span>
-                    <StatusBadge status={claim.status} />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -294,54 +502,82 @@ export default function Reimbursements() {
             <h2 className="font-heading font-semibold text-base">Submission History</h2>
           </div>
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="text-xs text-muted-foreground">
-                  <TableHead className="pl-5 font-normal">Date</TableHead>
-                  <TableHead className="font-normal">Category</TableHead>
-                  <TableHead className="font-normal">Description</TableHead>
-                  <TableHead className="font-normal">Amount</TableHead>
-                  <TableHead className="font-normal">Status</TableHead>
-                  <TableHead className="font-normal">Payout Month</TableHead>
-                  <TableHead className="font-normal">Payment Method</TableHead>
-                  <TableHead className="font-normal">Receipt</TableHead>
-                  <TableHead className="pr-5 font-normal text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historyRows.map((row, i) => {
-                  const cat = categoryIcon[row.category] ?? { icon: Receipt, iconBg: 'bg-slate-100 dark:bg-slate-800', iconColor: 'text-slate-500' };
-                  const CatIcon = cat.icon;
-                  return (
-                    <TableRow key={i} className="text-sm">
-                      <TableCell className="pl-5 text-muted-foreground whitespace-nowrap">{row.date}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <IconCircle icon={CatIcon} bg={cat.iconBg} color={cat.iconColor} />
-                          <span>{row.category}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{row.description}</TableCell>
-                      <TableCell className="font-medium">{row.amount}</TableCell>
-                      <TableCell><StatusBadge status={row.status} /></TableCell>
-                      <TableCell className="text-muted-foreground">{row.payout}</TableCell>
-                      <TableCell className="text-muted-foreground">{row.method}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Paperclip className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span className="text-xs truncate max-w-[110px]">{row.receipt}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="pr-5 text-right">
-                        <button className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                          View
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            {loading ? (
+              <div className="p-6 space-y-3">
+                {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
+            ) : requests.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-muted-foreground">No submissions found for this month.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs text-muted-foreground">
+                    <TableHead className="pl-5 font-normal">Date</TableHead>
+                    <TableHead className="font-normal">Category</TableHead>
+                    <TableHead className="font-normal">Ref</TableHead>
+                    <TableHead className="font-normal">Amount</TableHead>
+                    <TableHead className="font-normal">Status</TableHead>
+                    <TableHead className="font-normal">Payout Month</TableHead>
+                    <TableHead className="font-normal">Receipt</TableHead>
+                    <TableHead className="pr-5 font-normal text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requests.map((row) => {
+                    const ci = getCategoryIcon(row.category_name);
+                    return (
+                      <TableRow key={row.id} className="text-sm">
+                        <TableCell className="pl-5 text-muted-foreground whitespace-nowrap">
+                          {formatDate(row.spend_date)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <IconCircle icon={ci.icon} bg={ci.iconBg} color={ci.iconColor} />
+                            <span className="whitespace-nowrap">{row.category_name ?? row.category_name_snapshot ?? '—'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground font-mono text-xs">
+                          {row.source_submission_id ?? '—'}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {fmt(row.approved_amount ?? row.spend_amount)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={row.approval_status} />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">
+                          {row.payout_month_key ? formatMonthLabel(row.payout_month_key) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {row.attachment_file_name ? (
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <Paperclip className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="text-xs truncate max-w-[120px]">{row.attachment_file_name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="pr-5 text-right">
+                          {row.attachment_storage_path ? (
+                            <button
+                              className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                              onClick={() => handleViewReceipt(row.attachment_storage_bucket, row.attachment_storage_path)}
+                            >
+                              View
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </div>
 

@@ -583,12 +583,12 @@ export default function Reimbursements() {
           </span>
         </div>
 
-        {/* ── 4, 5 & 6. Payout Summary heading + Flex Breakdown + Standalone Claims + Last Month Off-Cycle ── */}
+        {/* ── 4, 5 & 6. Payout Summary heading + Flex Breakdown | Standalone Claims + Last Month Off-Cycle ── */}
         <div>
           <h2 className="font-heading font-semibold text-base mb-3">Payout Summary</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Flex Breakdown */}
+          {/* LEFT: Flex Breakdown */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
             <h2 className="font-heading font-semibold text-base">{selectedMonthLabel} Flex Breakdown</h2>
 
@@ -643,6 +643,9 @@ export default function Reimbursements() {
               </>
             )}
           </div>
+
+          {/* RIGHT column: Standalone Claims stacked above Last Month Off-Cycle */}
+          <div className="flex flex-col gap-4">
 
           {/* Standalone Claims */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -705,8 +708,9 @@ export default function Reimbursements() {
               </div>
             );
           })()}
-        </div>
-        </div>
+          </div>{/* end right column */}
+        </div>{/* end 2-col grid */}
+        </div>{/* end Payout Summary wrapper */}
 
         {/* ── 6. Submission History table ── */}
         <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">

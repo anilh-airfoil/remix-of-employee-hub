@@ -1,4 +1,4 @@
-// Phase 9.2 Tweak + Phase 9.3 — Reimbursements page connected to Supabase real data.
+// Phase 9.2 Tweak + Phase 9.3 + Phase 9.4 — Reimbursements page connected to Supabase real data.
 // Fix: Used = personal_flex_approved (not eom_flex_paid). Remaining = cap - used, allow negative.
 // Fix: Submit URL → https://forms.airfoil.studio/internal
 // Fix: View receipt → in-dashboard modal (60% viewport), signed URL, PDF/image preview.
@@ -98,6 +98,7 @@ interface Ledger {
   flex_cap_usd: number;
   eom_flex_paid: number;
   off_cycle_owed: number;
+  prior_month_off_cycle_paid: number;
   total_payout_usd: number;
   personal_flex_approved: number;
   midjourney_used: number;
@@ -113,6 +114,7 @@ interface ReimbRequest {
   id: string;
   source_submission_id: string | null;
   spend_date: string | null;
+  reimbursement_month: string | null;
   spend_amount: number;
   approved_amount: number | null;
   approval_status: string;
@@ -361,7 +363,7 @@ export default function Reimbursements() {
     // 1. Ledger row
     const { data: ledgerData } = await supabase
       .from('flex_monthly_ledgers')
-      .select('flex_cap_usd, eom_flex_paid, off_cycle_owed, total_payout_usd, personal_flex_approved, midjourney_used, manager_claim_used, approved_travel_used, client_expense_claim_used, crypto_stipend, equipment_eligible, others')
+      .select('flex_cap_usd, eom_flex_paid, off_cycle_owed, prior_month_off_cycle_paid, total_payout_usd, personal_flex_approved, midjourney_used, manager_claim_used, approved_travel_used, client_expense_claim_used, crypto_stipend, equipment_eligible, others')
       .eq('user_id', userId)
       .eq('month_key', selectedMonthKey)
       .maybeSingle();
@@ -369,12 +371,16 @@ export default function Reimbursements() {
     setLedger(ledgerData as Ledger | null);
 
     // 2. Reimbursement requests + category join
+    // Phase 9.4 fix: filter by reimbursement_month (not payout_month_key) so off-cycle rows
+    // submitted in month X appear in month X's history, even if payout_month_key = X+1.
+    const selectedMonthLabel_db = MONTHS.find(m => m.key === selectedMonthKey)?.label ?? '';
     const { data: reqData } = await supabase
       .from('reimbursement_requests')
       .select(`
         id,
         source_submission_id,
         spend_date,
+        reimbursement_month,
         spend_amount,
         approved_amount,
         approval_status,
@@ -386,7 +392,7 @@ export default function Reimbursements() {
         )
       `)
       .eq('user_id', userId)
-      .eq('payout_month_key', selectedMonthKey)
+      .eq('reimbursement_month', selectedMonthLabel_db)
       .order('spend_date', { ascending: true });
 
     // 3. Attachments for this user
@@ -406,6 +412,7 @@ export default function Reimbursements() {
         id: r.id,
         source_submission_id: r.source_submission_id,
         spend_date: r.spend_date,
+        reimbursement_month: r.reimbursement_month,
         spend_amount: Number(r.spend_amount),
         approved_amount: r.approved_amount != null ? Number(r.approved_amount) : null,
         approval_status: r.approval_status,
@@ -576,8 +583,10 @@ export default function Reimbursements() {
           </span>
         </div>
 
-        {/* ── 4 & 5. Flex Breakdown + Standalone Claims side by side ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ── 4, 5 & 6. Payout Summary heading + Flex Breakdown + Standalone Claims + Last Month Off-Cycle ── */}
+        <div>
+          <h2 className="font-heading font-semibold text-base mb-3">Payout Summary</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* Flex Breakdown */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
@@ -661,6 +670,42 @@ export default function Reimbursements() {
               </div>
             )}
           </div>
+
+          {/* Last Month Off-Cycle */}
+          {(() => {
+            const priorOffCycle = ledger?.prior_month_off_cycle_paid ?? 0;
+            // Derive the prior month label from selectedMonthKey
+            const [yr, mo] = selectedMonthKey.split('-').map(Number);
+            const priorDate = new Date(yr, mo - 2, 1); // subtract 1 month
+            const priorLabel = priorDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const hasAmount = priorOffCycle > 0;
+            return (
+              <div className="rounded-xl border border-border bg-card p-5 shadow-sm flex flex-col gap-4">
+                <h2 className="font-heading font-semibold text-base">Last Month Off-Cycle</h2>
+                {loading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-8 w-28" />
+                    <Skeleton className="h-4 w-40" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-3">
+                      <IconCircle icon={RefreshCw} bg="bg-purple-100 dark:bg-purple-900/40" color="text-purple-500" size="md" />
+                      <span className={`text-2xl font-bold font-heading tracking-tight ${hasAmount ? 'text-purple-600 dark:text-purple-400' : 'text-foreground'}`}>
+                        {fmt(priorOffCycle)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {hasAmount
+                        ? <>{priorLabel} off-cycle paid this month</>
+                        : 'No prior off-cycle payout this month.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
         </div>
 
         {/* ── 6. Submission History table ── */}

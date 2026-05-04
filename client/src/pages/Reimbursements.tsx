@@ -761,7 +761,7 @@ export default function Reimbursements() {
                           {row.source_submission_id ?? '—'}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {fmt(row.approved_amount ?? row.spend_amount)}
+                          {fmt(row.spend_amount)}
                         </TableCell>
                         <TableCell>
                           <StatusBadge status={row.approval_status} />

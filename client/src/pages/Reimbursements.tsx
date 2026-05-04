@@ -586,9 +586,9 @@ export default function Reimbursements() {
         {/* ── 4, 5 & 6. Payout Summary heading + Flex Breakdown | Standalone Claims + Last Month Off-Cycle ── */}
         <div>
           <h2 className="font-heading font-semibold text-base mb-3">Payout Summary</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:items-stretch">
 
-          {/* LEFT: Flex Breakdown */}
+          {/* LEFT: Flex Breakdown — stretches to match right column height */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
             <h2 className="font-heading font-semibold text-base">{selectedMonthLabel} Flex Breakdown</h2>
 
@@ -644,7 +644,7 @@ export default function Reimbursements() {
             )}
           </div>
 
-          {/* RIGHT column: Standalone Claims stacked above Last Month Off-Cycle */}
+          {/* RIGHT column: Standalone Claims stacked above Last Month Off-Cycle — fills full height of left column */}
           <div className="flex flex-col gap-4">
 
           {/* Standalone Claims */}
@@ -677,32 +677,35 @@ export default function Reimbursements() {
           {/* Last Month Off-Cycle */}
           {(() => {
             const priorOffCycle = ledger?.prior_month_off_cycle_paid ?? 0;
-            // Derive the prior month label from selectedMonthKey
             const [yr, mo] = selectedMonthKey.split('-').map(Number);
-            const priorDate = new Date(yr, mo - 2, 1); // subtract 1 month
+            const priorDate = new Date(yr, mo - 2, 1);
             const priorLabel = priorDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
             const hasAmount = priorOffCycle > 0;
             return (
-              <div className="rounded-xl border border-border bg-card p-5 shadow-sm flex flex-col gap-4">
-                <h2 className="font-heading font-semibold text-base">Last Month Off-Cycle</h2>
+              <div className="rounded-xl border border-border bg-card p-5 shadow-sm flex-1">
+                <h2 className="font-heading font-semibold text-base mb-4">Last Month Off-Cycle</h2>
                 {loading ? (
                   <div className="space-y-3">
-                    <Skeleton className="h-8 w-28" />
-                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-10 w-full" />
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-3">
-                      <IconCircle icon={RefreshCw} bg="bg-purple-100 dark:bg-purple-900/40" color="text-purple-500" size="md" />
-                      <span className={`text-2xl font-bold font-heading tracking-tight ${hasAmount ? 'text-purple-600 dark:text-purple-400' : 'text-foreground'}`}>
-                        {fmt(priorOffCycle)}
-                      </span>
+                  <div className="divide-y divide-border">
+                    <div className="flex items-center justify-between py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <IconCircle icon={RefreshCw} bg="bg-purple-100 dark:bg-purple-900/40" color="text-purple-500" />
+                        <span className="text-sm">
+                          {hasAmount ? `${priorLabel} off-cycle` : 'No prior off-cycle'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-sm font-medium ${hasAmount ? 'text-purple-600 dark:text-purple-400' : ''}`}>
+                          {fmt(priorOffCycle)}
+                        </span>
+                        {hasAmount
+                          ? <Badge className="bg-purple-500 hover:bg-purple-500 text-white border-0 font-medium px-2.5">Paid</Badge>
+                          : <Badge variant="outline" className="text-muted-foreground">None</Badge>}
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {hasAmount
-                        ? <>{priorLabel} off-cycle paid this month</>
-                        : 'No prior off-cycle payout this month.'}
-                    </p>
                   </div>
                 )}
               </div>
